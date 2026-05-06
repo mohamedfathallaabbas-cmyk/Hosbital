@@ -1,0 +1,80 @@
+import { useState } from 'react';
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  LayoutDashboard, Users, Stethoscope, Building2, Calendar,
+  Bed, FileText, BookOpen, Activity, Settings, LogOut,
+  HeartPulse, PlusCircle, Pencil, Trash2, Search,
+  Menu, X, BarChart3, Eye, Phone, MapPin, CheckCircle,
+  Clock, User, Tag, Image, AlignLeft
+} from 'lucide-react';
+import Topbar from '../../components/hospital/Topbar';
+import AdminHome from "./components/AdminHome";
+import DoctorsManagement from "./components/DoctorsManagement";
+import PatientsManagement from "./components/PatientsManagement";
+import DepartmentsManagement from "./components/DepartmentsManagement";
+import AppointmentsManagement from "./components/AppointmentsManagement";
+import BedsManagement from "./components/BedsManagement";
+import BlogManagement from "./components/BlogManagement";
+
+const sidebarLinks = [
+  { icon: LayoutDashboard, label: 'لوحة التحكم', path: '/admin/dashboard' },
+  { icon: Stethoscope, label: 'إدارة الأطباء', path: '/admin/doctors' },
+  { icon: Users, label: 'إدارة المرضى', path: '/admin/patients' },
+  { icon: Building2, label: 'إدارة الأقسام', path: '/admin/departments' },
+  { icon: Calendar, label: 'إدارة المواعيد', path: '/admin/appointments' },
+  { icon: Bed, label: 'إدارة الأسرة', path: '/admin/beds' },
+  { icon: BookOpen, label: 'المدونة والمحتوى', path: '/admin/blog' },
+  
+];
+
+export default function AdminDashboard() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
+  const handleLogout = () => { sessionStorage.removeItem('hospitalUser'); navigate('/role-select'); };
+  const currentTitle = sidebarLinks.find(l => l.path === location.pathname)?.label || 'لوحة التحكم';
+
+  return (
+    <div className="flex min-h-screen font-cairo" dir="rtl">
+      <aside className="sidebar hidden md:flex flex-col" style={{ width: '260px' }}>
+        <div className="p-5 border-b border-white/10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}><HeartPulse className="w-5 h-5 text-white" /></div>
+          <div><div className="text-white font-bold text-sm">مستشفى الشفاء</div><div className="text-slate-400 text-xs">الإدارة التشغيلية</div></div>
+        </div>
+        <div className="mx-4 mt-4 p-3 rounded-xl" style={{ background: 'rgba(139,92,246,0.15)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>{user.name?.charAt(0) || 'إ'}</div>
+            <div><div className="text-white text-sm font-semibold truncate max-w-36">{user.name}</div><div className="text-purple-300 text-xs">مسؤول النظام</div></div>
+          </div>
+        </div>
+        <nav className="flex-1 p-3 mt-2">
+          {sidebarLinks.map((item, i) => {
+            const isActive = location.pathname === item.path;
+            return <Link key={i} to={item.path} className={`sidebar-item ${isActive ? 'active' : ''}`} style={isActive ? { borderColor: '#8b5cf6' } : {}}><item.icon className="w-5 h-5" style={{ color: isActive ? '#8b5cf6' : undefined }} /><span>{item.label}</span></Link>;
+          })}
+        </nav>
+        <div className="p-4 border-t border-white/10">
+          <button onClick={handleLogout} className="sidebar-item w-full text-red-400 hover:text-red-300 hover:bg-red-500/10"><LogOut className="w-5 h-5" /><span>خروج</span></button>
+        </div>
+      </aside>
+      <button onClick={() => setMobileMenu(true)} className="fixed top-4 right-4 z-50 md:hidden w-11 h-11 rounded-xl flex items-center justify-center shadow-lg" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}><Menu className="w-5 h-5 text-white" /></button>
+      <main className="flex-1 min-h-screen" style={{ background: 'linear-gradient(135deg, #faf5ff, #eff6ff, #f0fdfa)', marginRight: '260px' }} id="admin-main">
+        <Topbar title={currentTitle} roleColor="#8b5cf6" />
+        <Routes>
+          <Route index element={<AdminHome />} />
+          <Route path="dashboard" element={<AdminHome />} />
+          <Route path="doctors" element={<DoctorsManagement />} />
+          <Route path="patients" element={<PatientsManagement />} />
+          <Route path="departments" element={<DepartmentsManagement />} />
+          <Route path="appointments" element={<AppointmentsManagement />} />
+          <Route path="beds" element={<BedsManagement />} />
+          <Route path="blog" element={<BlogManagement />} />
+          <Route path="*" element={<AdminHome />} />
+        </Routes>
+      </main>
+      <style>{`@media (max-width: 768px) { #admin-main { margin-right: 0 !important; } }`}</style>
+    </div>
+  );
+}

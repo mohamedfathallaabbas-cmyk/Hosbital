@@ -1,0 +1,341 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------
+// 1. Core Users & Staff (المستخدمين والموظفين)
+// -------------------------------------------------
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("PATIENT") // PATIENT, DOCTOR, NURSE, RECEPTION, ADMIN, MANAGER, PHARMACIST, LAB_TECH
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctorProfile  Doctor?
+  patientProfile Patient?
+  staffProfile   Staff?
+}
+
+model Department {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  headId      Int?     // مدير القسم
+  
+  doctors     Doctor[]
+  wards       Ward[]
+}
+
+model Staff {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @unique
+  user          User     @relation(fields: [userId], references: [id])
+  jobTitle      String   // ممرض، موظف استقبال، الخ
+  shift         String?  // صباحي، مسائي
+  salary        Float?
+  hireDate      DateTime @default(now())
+}
+
+model Doctor {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @unique
+  user         User       @relation(fields: [userId], references: [id])
+  departmentId Int
+  department   Department @relation(fields: [departmentId], references: [id])
+  
+  specialty    String
+  consultFee   Float
+  clinicNumber String?
+  
+  appointments Appointment[]
+  admissions   Admission[]
+  labOrders    LabOrder[]
+}
+
+model Patient {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique
+  user            User     @relation(fields: [userId], references: [id])
+  
+  nationalId      String?  @unique
+  dateOfBirth     DateTime?
+  gender          String?
+  bloodType       String?
+  weight          Float?
+  height          Float?
+  emergencyContact String?
+  
+  allergies       String? 
+  chronicDiseases String?
+  
+  appointments    Appointment[]
+  admissions      Admission[]
+  invoices        Invoice[]
+  policies        InsurancePolicy[]
+}
+
+// -------------------------------------------------
+// 2. Appointments, Triage & Queue (المواعيد والفرز والطابور)
+// -------------------------------------------------
+
+model Appointment {
+  id          Int      @id @default(autoincrement())
+  patientId   Int
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  doctorId    Int
+  doctor      Doctor   @relation(fields: [doctorId], references: [id])
+  
+  date        DateTime
+  timeSlot    String?
+  status      String   @default("SCHEDULED") // SCHEDULED, WAITING, IN_PROGRESS, COMPLETED, CANCELLED
+  type        String   @default("CHECKUP") // كشف، متابعة، طوارئ
+  queueNumber Int?
+
+  triage        Triage?
+  medicalRecord MedicalRecord?
+}
+
+model Triage {
+  id            Int      @id @default(autoincrement())
+  appointmentId Int      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  
+  bloodPressure String?
+  heartRate     Int?
+  temperature   Float?
+  oxygenLevel   Int?
+  priorityLevel String   @default("NORMAL") // تصنيف الخطورة: منخفض، طبيعي، عاجل، حرج
+  notes         String?
+  
+  recordedAt    DateTime @default(now())
+}
+
+// -------------------------------------------------
+// 3. Clinical & Medical Records (السجلات الطبية)
+// -------------------------------------------------
+
+model MedicalRecord {
+  id            Int      @id @default(autoincrement())
+  appointmentId Int      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  
+  complaint     String
+  diagnosis     String
+  treatmentPlan String?
+  notes         String?
+  
+  prescriptions Prescription[]
+  createdAt     DateTime @default(now())
+}
+
+// -------------------------------------------------
+// 4. Inpatient & Ward Management (التنويم وغرف المستشفى)
+// -------------------------------------------------
+
+model Ward {
+  id           Int        @id @default(autoincrement())
+  departmentId Int
+  department   Department @relation(fields: [departmentId], references: [id])
+  name         String
+  type         String     // عناية مركزة، طوارئ، عام
+  capacity     Int
+  
+  rooms        Room[]
+}
+
+model Room {
+  id          Int    @id @default(autoincrement())
+  wardId      Int
+  ward        Ward   @relation(fields: [wardId], references: [id])
+  roomNumber  String
+  type        String // خاص، مشترك
+  pricePerDay Float
+  
+  beds        Bed[]
+}
+
+model Bed {
+  id          Int      @id @default(autoincrement())
+  roomId      Int
+  room        Room     @relation(fields: [roomId], references: [id])
+  bedNumber   String
+  isOccupied  Boolean  @default(false)
+  
+  admissions  Admission[]
+}
+
+model Admission {
+  id          Int      @id @default(autoincrement())
+  patientId   Int
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  doctorId    Int
+  doctor      Doctor   @relation(fields: [doctorId], references: [id])
+  bedId       Int
+  bed         Bed      @relation(fields: [bedId], references: [id])
+  
+  reason      String
+  status      String   @default("ADMITTED") // منوم، خرج
+  admittedAt  DateTime @default(now())
+  dischargedAt DateTime?
+}
+
+// -------------------------------------------------
+// 5. Pharmacy & Inventory (الصيدلية والأدوية)
+// -------------------------------------------------
+
+model Medicine {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  genericName String?
+  category    String   // أقراص، شراب، حقن
+  stock       Int      @default(0)
+  price       Float
+  expiryDate  DateTime?
+  
+  prescriptionItems PrescriptionItem[]
+}
+
+model Prescription {
+  id              Int      @id @default(autoincrement())
+  medicalRecordId Int
+  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id])
+  status          String   @default("PENDING") // معلقة، تم صرفها
+  
+  items           PrescriptionItem[]
+  createdAt       DateTime @default(now())
+}
+
+model PrescriptionItem {
+  id             Int          @id @default(autoincrement())
+  prescriptionId Int
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  medicineId     Int
+  medicine       Medicine     @relation(fields: [medicineId], references: [id])
+  
+  dosage         String
+  frequency      String       // مثل: 3 مرات يومياً
+  duration       String       // مثل: 5 أيام
+  quantity       Int
+}
+
+// -------------------------------------------------
+// 6. Laboratory & Radiology (المعامل والأشعة)
+// -------------------------------------------------
+
+model LabTestCatalog {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  type        String   // دم، بول، أشعة، رنين مغناطيسي
+  cost        Float
+  
+  labOrders   LabOrder[]
+}
+
+model LabOrder {
+  id          Int      @id @default(autoincrement())
+  patientId   Int?     
+  doctorId    Int
+  doctor      Doctor   @relation(fields: [doctorId], references: [id])
+  testId      Int
+  test        LabTestCatalog @relation(fields: [testId], references: [id])
+  
+  status      String   @default("PENDING") // بانتظار العينة، مكتمل
+  result      String?  // رابط النتيجة أو النص
+  resultValue String?  // القيمة مثل 120 mg/dL
+  isNormal    Boolean?
+  
+  orderedAt   DateTime @default(now())
+  completedAt DateTime?
+}
+
+// -------------------------------------------------
+// 7. Billing & Insurance (الفواتير والتأمين)
+// -------------------------------------------------
+
+model InsuranceCompany {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  email       String?
+  phone       String?
+  
+  policies    InsurancePolicy[]
+  claims      Claim[]
+}
+
+model InsurancePolicy {
+  id          Int      @id @default(autoincrement())
+  patientId   Int
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  companyId   Int
+  company     InsuranceCompany @relation(fields: [companyId], references: [id])
+  
+  policyNumber String  @unique
+  coveragePct  Float   // نسبة التغطية (مثلاً 0.8 يعني 80%)
+  expiryDate   DateTime
+}
+
+model Invoice {
+  id          Int      @id @default(autoincrement())
+  patientId   Int
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  
+  subtotal    Float    @default(0.0)
+  tax         Float    @default(0.0)
+  discount    Float    @default(0.0)
+  totalAmount Float
+  
+  status      String   @default("UNPAID") // مدفوعة، غير مدفوعة، جزئية
+  
+  items       InvoiceItem[]
+  payments    Payment[]
+  claims      Claim[]
+  
+  createdAt   DateTime @default(now())
+  dueDate     DateTime?
+}
+
+model InvoiceItem {
+  id          Int      @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  
+  description String   // كشف طبي، تحليل دم، الخ
+  amount      Float
+}
+
+model Payment {
+  id          Int      @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  
+  amountPaid  Float
+  method      String   // كاش، بطاقة ائتمان، تأمين
+  transactionId String?
+  
+  paidAt      DateTime @default(now())
+}
+
+model Claim {
+  id          Int      @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  companyId   Int
+  company     InsuranceCompany @relation(fields: [companyId], references: [id])
+  
+  claimedAmount Float
+  status        String   @default("SUBMITTED") // مقدمة، مقبولة، مرفوضة
+  remarks       String?
+  
+  submittedAt   DateTime @default(now())
+}
