@@ -18,6 +18,7 @@ import ManagerDashboard from './pages/manager/ManagerDashboard';
 import PharmacyDashboard from './pages/pharmacy/PharmacyDashboard';
 import LabDashboard from './pages/lab/LabDashboard';
 import NursingDashboard from './pages/nursing/NursingDashboard';
+import StaffDashboard from './pages/staff/StaffDashboard';
 
 
 const AuthenticatedApp = () => {
@@ -69,6 +70,9 @@ const AuthenticatedApp = () => {
 
         {/* Nursing Routes */}
         <Route path="/nursing/*" element={<NursingDashboard />} />
+
+        {/* Staff Routes */}
+        <Route path="/staff/*" element={<StaffDashboard />} />
 
       </Route>
 

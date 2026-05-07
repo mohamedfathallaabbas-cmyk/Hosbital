@@ -18,7 +18,7 @@ const roles = [
   { id: 'admin', label: 'مدير النظام', sublabel: 'Admin', icon: Settings, color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', desc: 'إدارة تشغيلية للنظام', path: '/admin/dashboard' },
   { id: 'manager', label: 'مدير المستشفى', sublabel: 'Manager', icon: TrendingUp, color: '#ef4444', bg: 'rgba(239,68,68,0.1)', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', desc: 'التقارير والإحصائيات الشاملة', path: '/admin/dashboard' },
   { id: 'financial_manager', label: 'مدير مالي', sublabel: 'Finance', icon: TrendingUp, color: '#eab308', bg: 'rgba(234,179,8,0.1)', gradient: 'linear-gradient(135deg, #eab308, #ca8a04)', desc: 'الماليات والرواتب والفواتير', path: '/admin/dashboard' },
-  { id: 'operations_manager', label: 'مدير تشغيل', sublabel: 'Operations', icon: Settings, color: '#6366f1', bg: 'rgba(99,102,241,0.1)', gradient: 'linear-gradient(135deg, #6366f1, #4f46e5)', desc: 'إدارة شؤون الموظفين', path: '/admin/dashboard' },
+  { id: 'staff', label: 'موظف', sublabel: 'Staff', icon: User, color: '#475569', bg: 'rgba(71,85,105,0.1)', gradient: 'linear-gradient(135deg, #475569, #0f172a)', desc: 'بيانات الموظف والمرتب والحضور والإجازات', path: '/staff/dashboard' },
 ];
 
 const credentials = {
@@ -31,7 +31,7 @@ const credentials = {
   admin: { email: 'admin@alshifa.com', pass: '123456' },
   manager: { email: 'manager@alshifa.com', pass: '123456' },
   financial_manager: { email: 'finance@alshifa.com', pass: '123456' },
-  operations_manager: { email: 'operations@alshifa.com', pass: '123456' },
+  staff: { email: 'staff@alshifa.com', pass: '123456' },
 };
 
 const userNames = {
@@ -87,10 +87,10 @@ export default function RoleSelect() {
         reception: '/reception/dashboard',
         admin: '/admin/dashboard',
         manager: '/admin/dashboard',
-        financial_manager: '/admin/dashboard',
-        operations_manager: '/admin/dashboard',
+        financial_manager: '/admin/dashboard',
         pharmacist: '/pharmacy/dashboard',
-        lab_tech: '/lab/dashboard'
+        lab_tech: '/lab/dashboard',
+        staff: '/staff/dashboard'
       };
 
       login({

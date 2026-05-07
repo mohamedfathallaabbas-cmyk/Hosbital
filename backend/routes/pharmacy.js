@@ -57,8 +57,10 @@ router.patch('/prescriptions/:id/dispense', authenticate, async (req, res) => {
         data: { status: 'DISPENSED' }
       });
 
-      // 2. تخفيض المخزون (Atomic and Safe)
+      // 2. تخفيض المخزون للأدوية الموجودة بالصيدلية (Atomic and Safe)
       for (const item of prescription.items) {
+        if (!item.medicineId) continue; // دواء غير مسجل بالصيدلية
+
         const updatedMedicine = await tx.medicine.updateMany({
           where: { 
             id: item.medicineId,
@@ -68,7 +70,7 @@ router.patch('/prescriptions/:id/dispense', authenticate, async (req, res) => {
         });
 
         if (updatedMedicine.count === 0) {
-          throw new Error(`مخزون الدواء ${item.medicine.name} غير كافٍ`);
+          throw new Error(`مخزون الدواء ${item.medicine?.name || item.medicineName} غير كافٍ`);
         }
       }
 
@@ -86,7 +88,12 @@ router.patch('/prescriptions/:id/dispense', authenticate, async (req, res) => {
           });
         }
 
-        const totalMedsCost = prescription.items.reduce((sum, item) => sum + (item.medicine.price * item.quantity), 0);
+        const totalMedsCost = prescription.items.reduce((sum, item) => {
+          if (item.medicineId && item.medicine) {
+            return sum + (item.medicine.price * item.quantity);
+          }
+          return sum;
+        }, 0);
 
         await tx.invoiceItem.create({
           data: {

@@ -12,7 +12,7 @@ router.post('/login', async (req, res) => {
     // 1. البحث عن المستخدم بالإيميل
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { patientProfile: true, doctorProfile: true }
+      include: { patientProfile: true, doctorProfile: true, staffProfile: true }
     });
 
     if (!user) {
@@ -32,7 +32,8 @@ router.post('/login', async (req, res) => {
         role: user.role, 
         email: user.email,
         patientId: user.patientProfile?.id,
-        doctorId: user.doctorProfile?.id
+        doctorId: user.doctorProfile?.id,
+        staffId: user.staffProfile?.id
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
@@ -48,7 +49,8 @@ router.post('/login', async (req, res) => {
         email: user.email,
         role: user.role,
         patientId: user.patientProfile?.id,
-        doctorId: user.doctorProfile?.id
+        doctorId: user.doctorProfile?.id,
+        staffId: user.staffProfile?.id
       }
     });
 

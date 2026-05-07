@@ -358,176 +358,127 @@ function AppointmentsPage() {
 
 
 function BloodDonation() {
-  const donations = [
-    { date: '12 يناير 2025', type: 'دم كامل', center: 'مستشفى الشفاء', status: 'مكتمل' },
-    { date: '15 يوليو 2024', type: 'صفائح دموية', center: 'بنك الدم المركزي', status: 'مكتمل' },
-  ];
-
-  return (
-    <div className="p-6 fade-in space-y-6">
-      <div className="section-header">
-        <div className="section-header-line" />
-        <h3 className="text-xl font-bold text-slate-900">التبرع بالدم</h3>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white rounded-3xl p-8 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)' }}>
-            <Droplets className="absolute top-[-20px] left-[-20px] w-48 h-48 opacity-10" />
-            <div className="relative">
-              <h4 className="text-2xl font-black mb-2">كن بطلاً، تبرع بالدم</h4>
-              <p className="text-red-100 mb-6">تبرعك الواحد يمكن أن ينقذ حياة ثلاثة أشخاص. انضم لشبكة المتبرعين لدينا اليوم.</p>
-              <button className="px-6 py-3 bg-white text-red-600 rounded-xl font-bold hover:shadow-lg transition-all">حجز موعد تبرع</button>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <h4 className="font-bold text-slate-900 mb-4">سجل التبرعات</h4>
-            <div className="space-y-4">
-              {donations.map((d, i) => (
-                <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-red-500">
-                    <Droplets className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-slate-800 text-sm">{d.type}</p>
-                    <p className="text-slate-500 text-xs">{d.center} • {d.date}</p>
-                  </div>
-                  <span className="badge-success">{d.status}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm text-center">
-            <p className="text-slate-400 text-xs font-bold mb-4">فصيلتك</p>
-            <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-2 border-4 border-red-100">
-              <span className="text-3xl font-black text-red-600">A+</span>
-            </div>
-            <p className="text-slate-500 text-sm">متبرع نشط</p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <h4 className="font-bold text-slate-900 text-sm mb-4">لماذا تتبرع؟</h4>
-            <div className="space-y-3 text-sm text-slate-600">
-              <p className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 mt-0.5" /> فحص صحي مجاني</p>
-              <p className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 mt-0.5" /> تقليل مخاطر أمراض القلب</p>
-              <p className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 mt-0.5" /> تجديد خلايا الدم</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProfilePage() {
-  return (
-    <div className="p-6 fade-in">
-      <div className="section-header">
-        <div className="section-header-line" />
-        <h3 className="text-xl font-bold text-slate-900">الملف الشخصي</h3>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center">
-          <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-white text-3xl font-black mx-auto mb-4 shadow-xl"
-            style={{ background: 'linear-gradient(135deg, #2563eb, #14b8a6)' }}>أ</div>
-          <h3 className="text-xl font-black text-slate-900">أحمد محمد السيد</h3>
-          <p className="text-slate-500 text-sm mb-4">مريض مسجل</p>
-          <div className="flex justify-center gap-3">
-            <span className="badge-info">A+ دم</span>
-            <span className="badge-success">نشط</span>
-          </div>
-        </div>
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <h4 className="font-bold text-slate-900 mb-5">المعلومات الشخصية</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { label: 'الاسم الكامل', value: 'أحمد محمد السيد' },
-              { label: 'رقم الهوية', value: '1234567890' },
-              { label: 'تاريخ الميلاد', value: '15 مارس 1990' },
-              { label: 'رقم الهاتف', value: '+966 55 123 4567' },
-              { label: 'البريد الإلكتروني', value: 'patient@alshifa.com' },
-              { label: 'فصيلة الدم', value: 'A+' },
-              { label: 'الوزن', value: '75 كجم' },
-              { label: 'الطول', value: '175 سم' },
-            ].map((f, i) => (
-              <div key={i} className="p-3 rounded-xl bg-slate-50">
-                <p className="text-slate-400 text-xs mb-1">{f.label}</p>
-                <p className="text-slate-800 font-medium text-sm">{f.value}</p>
-              </div>
-            ))}
-          </div>
-          <button className="btn-primary-hospital mt-6 flex items-center gap-2">
-            <User className="w-4 h-4" />تعديل البيانات
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function UploadsPage() {
-  const [files, setFiles] = useState([]);
-  const [preview, setPreview] = useState(null);
+  const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
   const { toasts, addToast, removeToast } = useToast();
+  const [profile, setProfile] = useState(null);
+  const [donations, setDonations] = useState([]);
+  const [form, setForm] = useState({ quantity: 450, notes: '' });
 
-  const handleFileChange = (e) => {
-    const selected = Array.from(e.target.files);
-    const mapped = selected.map(f => ({ name: f.name, size: (f.size / 1024).toFixed(1) + ' KB', type: f.type, url: URL.createObjectURL(f), date: new Date().toLocaleDateString('ar-EG') }));
-    setFiles(prev => [...prev, ...mapped]);
-    addToast(`تم رفع ${selected.length} ملف بنجاح ✓`, 'success');
-    e.target.value = '';
+  const load = async () => {
+    if (!user.patientId) return;
+    const patientRes = await api.get('/patients/' + user.patientId);
+    setProfile(patientRes.data);
+    const donationRes = await api.get('/medical-records/blood-donations', { params: { nationalId: patientRes.data.nationalId } });
+    setDonations(donationRes.data);
+  };
+
+  useEffect(() => { load().catch(console.error); }, [user.patientId]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!profile?.nationalId) return addToast('يجب تسجيل الرقم القومي في الملف الشخصي أولا', 'error');
+    try {
+      await api.post('/medical-records/blood-donations', {
+        donorName: profile.user?.name || user.name,
+        nationalId: profile.nationalId,
+        bloodType: profile.bloodType || 'غير محدد',
+        quantity: form.quantity,
+        notes: form.notes
+      });
+      setForm({ quantity: 450, notes: '' });
+      addToast('تم تسجيل التبرع بالدم بنجاح', 'success');
+      await load();
+    } catch (err) {
+      addToast(err.response?.data?.error || 'فشل تسجيل التبرع', 'error');
+    }
   };
 
   return (
-    <div className="p-6 fade-in">
-      <div className="section-header"><div className="section-header-line" /><h3 className="text-xl font-bold">رفع الملفات الطبية</h3></div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div>
-          <label className="block bg-white rounded-2xl p-8 text-center border-2 border-dashed border-slate-200 shadow-sm cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all">
-            <Upload className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <h4 className="text-lg font-bold text-slate-700 mb-2">اسحب الملفات هنا</h4>
-            <p className="text-slate-400 text-sm mb-4">أو انقر لاختيار الملفات</p>
-            <span className="inline-flex items-center gap-2 btn-primary-hospital text-sm"><Upload className="w-4 h-4" />اختر ملفاً</span>
-            <input type="file" multiple accept="image/*,.pdf" className="hidden" onChange={handleFileChange} />
-          </label>
-          <p className="text-slate-400 text-xs text-center mt-3">يدعم: PDF، JPG، PNG، JPEG</p>
-        </div>
-        <div>
-          <h4 className="font-bold text-slate-900 mb-4">الملفات المرفوعة ({files.length})</h4>
-          {files.length === 0 ? (
-            <div className="text-center py-12 text-slate-300"><FileText className="w-12 h-12 mx-auto mb-3" /><p>لا توجد ملفات مرفوعة بعد</p></div>
-          ) : (
-            <div className="space-y-3">
-              {files.map((f, i) => (
-                <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    {f.type.startsWith('image/') ? <span className="text-xl">🖼️</span> : <FileText className="w-5 h-5 text-blue-500" />}
-                  </div>
-                  <div className="flex-1 min-w-0"><p className="font-medium text-slate-800 text-sm truncate">{f.name}</p><p className="text-slate-400 text-xs">{f.size} — {f.date}</p></div>
-                  {f.type.startsWith('image/') && <button onClick={() => setPreview(f.url)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"><Eye className="w-4 h-4" /></button>}
-                </motion.div>
-              ))}
-            </div>
-          )}
+    <div className="p-6 fade-in space-y-6">
+      <div className="section-header"><div className="section-header-line" /><h3 className="text-xl font-bold text-slate-900">التبرع بالدم</h3></div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <form onSubmit={submit} className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-4">
+          <div className="p-5 rounded-2xl text-white" style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)' }}>
+            <h4 className="text-2xl font-black mb-2">تسجيل تبرع بالدم</h4>
+            <p className="text-red-100 text-sm">سيتم حفظ بيانات التبرع في قاعدة البيانات.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-3 rounded-xl bg-slate-50"><p className="text-xs text-slate-400 mb-1">المتبرع</p><p className="font-bold text-slate-800">{profile?.user?.name || user.name}</p></div>
+            <div className="p-3 rounded-xl bg-slate-50"><p className="text-xs text-slate-400 mb-1">فصيلة الدم</p><p className="font-bold text-red-600">{profile?.bloodType || 'غير مسجلة'}</p></div>
+            <input type="number" min="100" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))} className="px-4 py-3 rounded-xl border bg-slate-50 font-cairo" placeholder="الكمية بالملليلتر" />
+            <input value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="px-4 py-3 rounded-xl border bg-slate-50 font-cairo" placeholder="ملاحظات" />
+          </div>
+          <button className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold">حفظ التبرع</button>
+        </form>
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+          <h4 className="font-bold text-slate-900 mb-4">سجل التبرعات ({donations.length})</h4>
+          <div className="space-y-3 max-h-96 overflow-auto">
+            {donations.length === 0 ? <p className="text-slate-400 text-sm text-center py-6">لا توجد تبرعات مسجلة</p> : donations.map(d => (
+              <div key={d.id} className="p-3 rounded-xl bg-red-50 border border-red-100"><div className="flex justify-between"><span className="font-bold text-slate-800">{d.quantity} ml</span><span className="badge-info">{d.status}</span></div><p className="text-xs text-slate-500 mt-1">{new Date(d.donationDate).toLocaleDateString('ar-EG')}</p>{d.notes && <p className="text-xs text-slate-500 mt-1">{d.notes}</p>}</div>
+            ))}
+          </div>
         </div>
       </div>
-
-      {preview && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4" onClick={() => setPreview(null)}>
-          <img src={preview} alt="preview" className="max-w-full max-h-full rounded-2xl shadow-2xl" />
-        </div>
-      )}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }
 
+function ProfilePage() {
+  const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
+  const { toasts, addToast, removeToast } = useToast();
+  const [profile, setProfile] = useState(null);
+  const [form, setForm] = useState({ phone: '', bloodType: '', weight: '', height: '', allergies: '', chronicDiseases: '', emergencyContact: '' });
 
+  useEffect(() => {
+    if (!user.patientId) return;
+    api.get('/patients/' + user.patientId).then(res => {
+      setProfile(res.data);
+      setForm({ phone: res.data.user?.phone || '', bloodType: res.data.bloodType || '', weight: res.data.weight || '', height: res.data.height || '', allergies: res.data.allergies || '', chronicDiseases: res.data.chronicDiseases || '', emergencyContact: res.data.emergencyContact || '' });
+    }).catch(console.error);
+  }, [user.patientId]);
 
+  const set = (key, value) => setForm(p => ({ ...p, [key]: value }));
+  const save = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.patch('/patients/' + user.patientId, form);
+      setProfile(res.data);
+      addToast('تم تحديث الملف الشخصي بنجاح', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'فشل تحديث الملف الشخصي', 'error');
+    }
+  };
+
+  return (
+    <div className="p-6 fade-in">
+      <div className="section-header"><div className="section-header-line" /><h3 className="text-xl font-bold text-slate-900">الملف الشخصي</h3></div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 text-center"><div className="w-24 h-24 rounded-3xl flex items-center justify-center text-white text-3xl font-black mx-auto mb-4 shadow-xl" style={{ background: 'linear-gradient(135deg, #2563eb, #14b8a6)' }}>{profile?.user?.name?.charAt(0) || user.name?.charAt(0) || 'م'}</div><h3 className="text-xl font-black text-slate-900">{profile?.user?.name || user.name}</h3><p className="text-slate-500 text-sm mb-4">مريض مسجل</p><div className="flex justify-center gap-3"><span className="badge-info">{profile?.bloodType || 'بدون فصيلة'}</span><span className="badge-success">نشط</span></div></div>
+        <form onSubmit={save} className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-100"><h4 className="font-bold text-slate-900 mb-5">تعديل المعلومات الشخصية والصحية</h4><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><input value={form.phone} onChange={e => set('phone', e.target.value)} className="px-4 py-3 rounded-xl border bg-slate-50 font-cairo" placeholder="رقم الهاتف" /><select value={form.bloodType} onChange={e => set('bloodType', e.target.value)} className="px-4 py-3 rounded-xl border bg-slate-50 font-cairo"><option value="">فصيلة الدم</option>{['A+','A-','B+','B-','O+','O-','AB+','AB-'].map(b => <option key={b}>{b}</option>)}</select><input type="number" value={form.weight} onChange={e => set('weight', e.target.value)} className="px-4 py-3 rounded-xl border bg-slate-50 font-cairo" placeholder="الوزن" /><input type="number" value={form.height} onChange={e => set('height', e.target.value)} className="px-4 py-3 rounded-xl border bg-slate-50 font-cairo" placeholder="الطول" /><input value={form.emergencyContact} onChange={e => set('emergencyContact', e.target.value)} className="px-4 py-3 rounded-xl border bg-slate-50 font-cairo" placeholder="رقم الطوارئ" /><input value={profile?.nationalId || ''} disabled className="px-4 py-3 rounded-xl border bg-slate-100 text-slate-400 font-cairo" placeholder="الرقم القومي" /><textarea value={form.allergies} onChange={e => set('allergies', e.target.value)} className="md:col-span-2 px-4 py-3 rounded-xl border bg-slate-50 h-24 resize-none font-cairo" placeholder="الحساسيات" /><textarea value={form.chronicDiseases} onChange={e => set('chronicDiseases', e.target.value)} className="md:col-span-2 px-4 py-3 rounded-xl border bg-slate-50 h-24 resize-none font-cairo" placeholder="الأمراض المزمنة" /></div><button className="btn-primary-hospital mt-6 flex items-center gap-2"><User className="w-4 h-4" />حفظ البيانات</button></form>
+      </div>
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+    </div>
+  );
+}
+
+function UploadsPage() {
+  const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
+  const [files, setFiles] = useState([]);
+  const [preview, setPreview] = useState(null);
+  const { toasts, addToast, removeToast } = useToast();
+  const load = () => { if (!user.patientId) return; api.get('/medical-records/radiology', { params: { patientId: user.patientId } }).then(res => setFiles(res.data)).catch(console.error); };
+  useEffect(() => { load(); }, [user.patientId]);
+  const toDataUrl = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+  const handleFileChange = async (e) => {
+    const selected = Array.from(e.target.files);
+    try { for (const file of selected) { const fileUrl = await toDataUrl(file); await api.post('/medical-records/radiology', { patientId: user.patientId, type: file.type?.includes('pdf') ? 'PDF' : 'Medical Upload', description: file.name, fileUrl }); } addToast('تم رفع الملفات وربطها بالباك إند', 'success'); await load(); } catch (err) { addToast(err.response?.data?.error || 'فشل رفع الملفات', 'error'); }
+    e.target.value = '';
+  };
+  return (
+    <div className="p-6 fade-in"><div className="section-header"><div className="section-header-line" /><h3 className="text-xl font-bold">رفع الملفات الطبية</h3></div><div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div><label className="block bg-white rounded-2xl p-8 text-center border-2 border-dashed border-slate-200 shadow-sm cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"><Upload className="w-12 h-12 text-slate-300 mx-auto mb-4" /><h4 className="text-lg font-bold text-slate-700 mb-2">ارفع ملفاتك الطبية</h4><p className="text-slate-400 text-sm mb-4">سيتم حفظ الملف في سجلات الأشعة/الملفات الطبية بالباك إند</p><span className="inline-flex items-center gap-2 btn-primary-hospital text-sm"><Upload className="w-4 h-4" />اختر ملفا</span><input type="file" multiple accept="image/*,.pdf" className="hidden" onChange={handleFileChange} /></label><p className="text-slate-400 text-xs text-center mt-3">يدعم: PDF، JPG، PNG، JPEG</p></div><div><h4 className="font-bold text-slate-900 mb-4">الملفات المحفوظة ({files.length})</h4>{files.length === 0 ? <div className="text-center py-12 text-slate-300"><FileText className="w-12 h-12 mx-auto mb-3" /><p>لا توجد ملفات مرفوعة بعد</p></div> : <div className="space-y-3">{files.map((f) => <motion.div key={f.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-100 shadow-sm"><div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0"><FileText className="w-5 h-5 text-blue-500" /></div><div className="flex-1 min-w-0"><p className="font-medium text-slate-800 text-sm truncate">{f.description || f.type}</p><p className="text-slate-400 text-xs">{f.type} - {new Date(f.uploadedAt).toLocaleDateString('ar-EG')}</p></div>{f.fileUrl?.startsWith('data:image') && <button onClick={() => setPreview(f.fileUrl)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"><Eye className="w-4 h-4" /></button>}</motion.div>)}</div>}</div></div>{preview && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4" onClick={() => setPreview(null)}><img src={preview} alt="preview" className="max-w-full max-h-full rounded-2xl shadow-2xl" /></div>}<ToastContainer toasts={toasts} removeToast={removeToast} /></div>
+  );
+}
 
 export default function PatientDashboard() {
   const location = useLocation();

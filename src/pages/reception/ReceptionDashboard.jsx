@@ -11,7 +11,6 @@ import PrintTemplate from '../../components/hospital/PrintTemplate';
 import Topbar from '../../components/hospital/Topbar';
 import StatCard from '../../components/hospital/StatCard';
 import Modal from '../../components/hospital/Modal';
-import ConfirmDialog from '../../components/hospital/ConfirmDialog';
 import { ToastContainer } from '../../components/hospital/Toast';
 import { useToast } from '../../hooks/useToast';
 import { BOOKINGS, EGYPTIAN_DOCTORS, DEPARTMENTS } from '../../lib/egyptianData';
@@ -67,6 +66,7 @@ function BookingsPage() {
   
   const [viewB, setViewB] = useState(null);
   const [rejectB, setRejectB] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
   
   // Reassign State
   const [reassignB, setReassignB] = useState(null);
@@ -111,9 +111,17 @@ function BookingsPage() {
     setViewB(null);
   };
 
-  const reject = (id) => {
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'rejected' } : b));
-    addToast('تم رفض الحجز', 'error');
+  const reject = async (id) => {
+    if (!rejectReason.trim()) return addToast('يرجى كتابة سبب الرفض', 'error');
+    try {
+      await api.patch(`/appointments/${id}/reject`, { rejectionReason: rejectReason.trim() });
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'rejected', rejectionReason: rejectReason.trim() } : b));
+      setRejectReason('');
+      setRejectB(null);
+      addToast('تم رفض الحجز مع حفظ سبب الرفض', 'error');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'فشل رفض الحجز', 'error');
+    }
   };
   const sendToDoctor = async (b) => {
     try {
@@ -373,8 +381,24 @@ function BookingsPage() {
         )}
       </Modal>
 
-      <ConfirmDialog open={!!rejectB} onClose={() => setRejectB(null)} onConfirm={() => { reject(rejectB.id); }}
-        title="رفض الحجز" message={`هل أنت متأكد من رفض حجز ${rejectB?.patient}؟`} confirmLabel="تأكيد الرفض" />
+      <Modal open={!!rejectB} onClose={() => { setRejectB(null); setRejectReason(''); }} title="رفض الحجز" size="sm">
+        {rejectB && (
+          <div className="p-6 space-y-4">
+            <div className="p-3 rounded-xl bg-red-50 border border-red-100">
+              <p className="font-bold text-slate-800 text-sm">{rejectB.patient}</p>
+              <p className="text-slate-500 text-xs">{rejectB.dept} - {rejectB.doctor}</p>
+            </div>
+            <div>
+              <label className="block text-slate-600 text-sm font-semibold mb-2">سبب الرفض *</label>
+              <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 h-28 resize-none font-cairo outline-none focus:border-red-400" placeholder="اكتب سبب رفض المريض أو الحجز..." />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setRejectB(null); setRejectReason(''); }} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-700 font-bold font-cairo">إلغاء</button>
+              <button onClick={() => reject(rejectB.id)} className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold font-cairo">تأكيد الرفض</button>
+            </div>
+          </div>
+        )}
+      </Modal>
       
       {printInv && (
         <PrintTemplate 

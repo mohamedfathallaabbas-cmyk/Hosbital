@@ -18,6 +18,7 @@ model User {
   name      String
   role      String   @default("PATIENT") // PATIENT, DOCTOR, NURSE, RECEPTION, ADMIN, MANAGER, FINANCIAL_MANAGER, OPERATIONS_MANAGER, PHARMACIST, LAB_TECH, STAFF
   phone     String?
+  avatarUrl String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -25,6 +26,9 @@ model User {
   doctorProfile  Doctor?
   patientProfile Patient?
   staffProfile   Staff?
+  
+  attendance     Attendance[]
+  articles       Article[]
 }
 
 model Department {
@@ -70,6 +74,7 @@ model Doctor {
   appointments Appointment[]
   admissions   Admission[]
   labOrders    LabOrder[]
+  radiologyRecords RadiologyRecord[]
 }
 
 model Patient {
@@ -92,6 +97,7 @@ model Patient {
   admissions      Admission[]
   invoices        Invoice[]
   policies        InsurancePolicy[]
+  radiologyRecords RadiologyRecord[]
 }
 
 // -------------------------------------------------
@@ -267,8 +273,9 @@ model PrescriptionItem {
   id             Int          @id @default(autoincrement())
   prescriptionId Int
   prescription   Prescription @relation(fields: [prescriptionId], references: [id])
-  medicineId     Int
-  medicine       Medicine     @relation(fields: [medicineId], references: [id])
+  medicineId     Int?
+  medicine       Medicine?    @relation(fields: [medicineId], references: [id])
+  medicineName   String?      // اسم الدواء في حال لم يكن مسجلاً بالصيدلية
   
   dosage         String
   frequency      String       // مثل: 3 مرات يومياً
@@ -391,4 +398,62 @@ model Claim {
   remarks       String?
   
   submittedAt   DateTime @default(now())
+}
+
+// -------------------------------------------------
+// 8. Radiology, Blood Bank & Other Medical Records
+// -------------------------------------------------
+
+model RadiologyRecord {
+  id          Int      @id @default(autoincrement())
+  patientId   Int
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  doctorId    Int
+  doctor      Doctor   @relation(fields: [doctorId], references: [id])
+  
+  type        String   // X-Ray, MRI, CT Scan, Ultrasound
+  description String?
+  fileUrl     String   // رابط ملف الأشعة
+  uploadedAt  DateTime @default(now())
+}
+
+model BloodDonation {
+  id            Int      @id @default(autoincrement())
+  donorName     String
+  nationalId    String
+  bloodType     String
+  quantity      Float    // بالمليلتر
+  donationDate  DateTime @default(now())
+  status        String   @default("TESTING") // قيد الفحص، صالح، غير صالح، مستخدم
+  notes         String?
+}
+
+// -------------------------------------------------
+// 9. Operational Management & HR (الإدارة التشغيلية والموارد البشرية)
+// -------------------------------------------------
+
+model Attendance {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  
+  date        DateTime @default(now()) // Can be stored as DATE only via app logic
+  checkIn     DateTime?
+  checkOut    DateTime?
+  status      String   @default("PRESENT") // حاضر، غائب، إجازة، متأخر
+  notes       String?
+  
+  @@unique([userId, date])
+}
+
+model Article {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String
+  authorId    Int
+  author      User     @relation(fields: [authorId], references: [id])
+  
+  published   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

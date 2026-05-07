@@ -24,12 +24,71 @@ router.get('/me', async (req, res) => {
   try {
     const staffProfile = await prisma.staff.findUnique({
       where: { userId: req.user.id },
-      include: { user: { select: { name: true, email: true, phone: true, role: true } } }
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+            role: true,
+            attendance: { orderBy: { date: 'desc' }, take: 30 }
+          }
+        }
+      }
     });
     if (!staffProfile) return res.status(404).json({ error: 'ملف الموظف غير موجود' });
-    res.json(staffProfile);
+
+    const attendance = staffProfile.user.attendance || [];
+    const leaveDaysUsed = attendance.filter((item) => item.status === 'LEAVE').length;
+    const absentDays = attendance.filter((item) => item.status === 'ABSENT').length;
+    const deductions = absentDays * ((staffProfile.salary || 0) / 30);
+
+    res.json({
+      ...staffProfile,
+      leave: {
+        balance: 21,
+        used: leaveDaysUsed,
+        remaining: Math.max(0, 21 - leaveDaysUsed)
+      },
+      payroll: {
+        salary: staffProfile.salary || 0,
+        allowances: staffProfile.allowances || 0,
+        deductions,
+        netSalary: (staffProfile.salary || 0) + (staffProfile.allowances || 0) - deductions,
+        isPaid: false,
+        lastPaymentDate: null
+      },
+      attendance
+    });
   } catch (error) {
     res.status(500).json({ error: 'خطأ في جلب بيانات الموظف' });
+  }
+});
+
+router.post('/me/attendance', async (req, res) => {
+  const { action, notes } = req.body;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  try {
+    const attendance = await prisma.attendance.upsert({
+      where: { userId_date: { userId: req.user.id, date: today } },
+      update: {
+        ...(action === 'checkout' ? { checkOut: new Date() } : { checkIn: new Date() }),
+        notes
+      },
+      create: {
+        userId: req.user.id,
+        date: today,
+        checkIn: action === 'checkout' ? null : new Date(),
+        checkOut: action === 'checkout' ? new Date() : null,
+        status: 'PRESENT',
+        notes
+      }
+    });
+    res.json({ message: 'تم تسجيل الحضور والانصراف', attendance });
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في تسجيل الحضور والانصراف' });
   }
 });
 
@@ -67,10 +126,10 @@ router.post('/', requireRole('ADMIN'), async (req, res) => {
     const defaultPassword = await bcrypt.hash(nationalId || '123456', 10);
     const newStaff = await prisma.user.create({
       data: {
-        name, email, phone, role, password: defaultPassword,
+        name, email, phone, role: role || 'STAFF', password: defaultPassword,
         staffProfile: {
           create: {
-            category, jobTitle, shift, salary: parseFloat(salary), nationalId, address, department, allowances: allowances ? parseFloat(allowances) : 0
+            category: category || 'ADMIN_STAFF', jobTitle, shift, salary: salary ? parseFloat(salary) : 0, nationalId, address, department, allowances: allowances ? parseFloat(allowances) : 0
           }
         }
       },

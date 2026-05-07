@@ -6,7 +6,7 @@ import {
   Bed, FileText, BookOpen, Activity, Settings, LogOut,
   HeartPulse, PlusCircle, Pencil, Trash2, Search,
   Menu, X, BarChart3, Eye, Phone, MapPin, CheckCircle,
-  Clock, User, Tag, Image, AlignLeft
+  Clock, User, UserCog, Tag, Image, AlignLeft
 } from 'lucide-react';
 import Topbar from '../../components/hospital/Topbar';
 import AdminHome from "./components/AdminHome";
@@ -16,11 +16,12 @@ import DepartmentsManagement from "./components/DepartmentsManagement";
 import AppointmentsManagement from "./components/AppointmentsManagement";
 import BedsManagement from "./components/BedsManagement";
 import BlogManagement from "./components/BlogManagement";
-
+import EmployeesManagement from "./components/EmployeesManagement";
 const sidebarLinks = [
   { icon: LayoutDashboard, label: 'لوحة التحكم', path: '/admin/dashboard' },
   { icon: Stethoscope, label: 'إدارة الأطباء', path: '/admin/doctors' },
   { icon: Users, label: 'إدارة المرضى', path: '/admin/patients' },
+  { icon: UserCog, label: 'إدارة الموظفين', path: '/admin/employees' },
   { icon: Building2, label: 'إدارة الأقسام', path: '/admin/departments' },
   { icon: Calendar, label: 'إدارة المواعيد', path: '/admin/appointments' },
   { icon: Bed, label: 'إدارة الأسرة', path: '/admin/beds' },
@@ -67,6 +68,7 @@ export default function AdminDashboard() {
           <Route path="dashboard" element={<AdminHome />} />
           <Route path="doctors" element={<DoctorsManagement />} />
           <Route path="patients" element={<PatientsManagement />} />
+          <Route path="employees" element={<EmployeesManagement />} />
           <Route path="departments" element={<DepartmentsManagement />} />
           <Route path="appointments" element={<AppointmentsManagement />} />
           <Route path="beds" element={<BedsManagement />} />

@@ -95,7 +95,7 @@ function PharmacyHome() {
                         <Droplets className="w-5 h-5 text-teal-600" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-800 text-sm">{item.medicine?.name || 'دواء'}</p>
+                        <p className="font-bold text-slate-800 text-sm">{item.medicine?.name || item.medicineName || 'دواء خارجي'}</p>
                         <p className="text-xs text-slate-500">{item.dosage} — {item.frequency} لمدة {item.duration}</p>
                       </div>
                     </div>
