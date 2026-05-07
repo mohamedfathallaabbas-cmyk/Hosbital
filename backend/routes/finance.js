@@ -5,59 +5,67 @@ import { authenticate } from '../middleware/auth.js';
 const router = express.Router();
 
 // GET: جلب الملخص المالي والتحليلات للوحة تحكم المدير
-router.get('/summary', async (req, res) => {
+router.get('/summary', authenticate, async (req, res) => {
   try {
-    const invoices = await prisma.invoice.findMany({
-      include: { 
-        items: true,
-        patient: { include: { user: true } }
-      }
+    // 1. إجمالي الإيرادات والمصاريف
+    const totalRevenueResult = await prisma.invoice.aggregate({
+      where: { status: 'PAID' },
+      _sum: { totalAmount: true }
     });
-
-    const paidInvoices = invoices.filter(inv => inv.status === 'PAID');
-    const totalRevenue = paidInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    
+    const totalRevenue = totalRevenueResult._sum.totalAmount || 0;
     const totalExpenses = totalRevenue * 0.45; // افتراضياً المصاريف 45%
     const netProfit = totalRevenue - totalExpenses;
 
-    // 1. حساب الإيرادات حسب القسم (عن طريق البحث في بنود الفواتير)
-    const deptStats = await prisma.department.findMany({
+    // 2. إيرادات الأقسام باستخدام GroupBy
+    // هنا نجلب الفواتير المدفوعة وندمج الأقسام (سنقوم بتجميعها في الذاكرة لكن فقط للفواتير المرتبطة بمواعيد بدلاً من جلب كل شيء)
+    const paidInvoices = await prisma.invoice.findMany({
+      where: { status: 'PAID' },
       include: {
-        doctors: {
+        patient: {
           include: {
             appointments: {
-              where: { invoices: { some: { status: 'PAID' } } },
-              include: { invoices: true }
+              include: {
+                doctor: { include: { department: true } }
+              }
             }
           }
+        },
+        items: true
+      }
+    });
+
+    const revenueByDeptMap = {};
+    let labRevenue = 0;
+
+    paidInvoices.forEach(inv => {
+      // إيرادات المعامل والأشعة
+      const labItems = inv.items.filter(item => item.description.includes('تحليل') || item.description.includes('أشعة'));
+      labRevenue += labItems.reduce((sum, item) => sum + item.amount, 0);
+
+      // باقي الإيرادات للأقسام (بشكل مبسط، نربط الفاتورة بآخر موعد للمريض)
+      if (inv.patient && inv.patient.appointments.length > 0) {
+        // نأخذ القسم من أحدث موعد 
+        const latestAppt = inv.patient.appointments[inv.patient.appointments.length - 1];
+        if (latestAppt && latestAppt.doctor && latestAppt.doctor.department) {
+          const deptName = latestAppt.doctor.department.name;
+          const nonLabRevenue = inv.totalAmount - labItems.reduce((sum, item) => sum + item.amount, 0);
+          
+          if (!revenueByDeptMap[deptName]) revenueByDeptMap[deptName] = 0;
+          revenueByDeptMap[deptName] += nonLabRevenue;
         }
       }
     });
 
-    const revenueByDept = deptStats.map(dept => {
-      let revenue = 0;
-      dept.doctors.forEach(doc => {
-        doc.appointments.forEach(appt => {
-          appt.invoices.forEach(inv => {
-            if (inv.status === 'PAID') revenue += inv.totalAmount;
-          });
-        });
-      });
-      return { name: dept.name, value: revenue };
-    });
+    const revenueByDept = Object.keys(revenueByDeptMap).map(name => ({
+      name, value: revenueByDeptMap[name]
+    }));
 
-    // إضافة إيرادات المعامل والأشعة (التي ليست مرتبطة بطبيب معين مباشرة في الموعد)
-    const labItems = await prisma.invoiceItem.findMany({
-      where: {
-        description: { contains: 'تحليل' },
-        invoice: { status: 'PAID' }
-      }
-    });
-    const labRevenue = labItems.reduce((sum, item) => sum + item.amount, 0);
     if (labRevenue > 0) {
       revenueByDept.push({ name: 'المختبر والأشعة', value: labRevenue });
     }
 
-    // 2. حساب النمو الشهري (لآخر 6 أشهر)
+    // 3. حساب النمو الشهري (لآخر 6 أشهر)
     const monthlyData = [];
     for (let i = 5; i >= 0; i--) {
       const date = new Date();
@@ -67,12 +75,28 @@ router.get('/summary', async (req, res) => {
       const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
       const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
-      const monthRevenue = paidInvoices
-        .filter(inv => inv.createdAt >= startOfMonth && inv.createdAt <= endOfMonth)
-        .reduce((sum, inv) => sum + inv.totalAmount, 0);
+      const monthRevenueResult = await prisma.invoice.aggregate({
+        where: {
+          status: 'PAID',
+          createdAt: {
+            gte: startOfMonth,
+            lte: endOfMonth
+          }
+        },
+        _sum: { totalAmount: true }
+      });
 
-      monthlyData.push({ month: monthLabel, revenue: monthRevenue });
+      monthlyData.push({ month: monthLabel, revenue: monthRevenueResult._sum.totalAmount || 0 });
     }
+
+    // الإحصائيات العامة
+    const [patientsCount, doctorsCount, apptsCount, invoicesCount, pendingInvoicesCount] = await Promise.all([
+      prisma.patient.count(),
+      prisma.doctor.count(),
+      prisma.appointment.count(),
+      prisma.invoice.count(),
+      prisma.invoice.count({ where: { status: 'PENDING' } })
+    ]);
 
     res.json({
       revenue: totalRevenue,
@@ -81,11 +105,11 @@ router.get('/summary', async (req, res) => {
       revenueByDept,
       monthlyData,
       stats: {
-        patients: await prisma.patient.count(),
-        doctors: await prisma.doctor.count(),
-        appointments: await prisma.appointment.count(),
-        invoices: invoices.length,
-        pendingInvoices: invoices.filter(i => i.status !== 'PAID').length
+        patients: patientsCount,
+        doctors: doctorsCount,
+        appointments: apptsCount,
+        invoices: invoicesCount,
+        pendingInvoices: pendingInvoicesCount
       }
     });
   } catch (error) {
@@ -95,11 +119,9 @@ router.get('/summary', async (req, res) => {
 });
 
 
-// POST: إنشاء فاتورة جديدة للمريض (تُستدعى غالباً من قسم الاستقبال)
-router.post('/invoices', async (req, res) => {
+// POST: إنشاء فاتورة جديدة للمريض
+router.post('/invoices', authenticate, async (req, res) => {
   const { patientId, items, discount = 0, status = 'UNPAID' } = req.body;
-  // الشكل المتوقع لـ items:
-  // [{ description: 'كشف باطنة', amount: 300 }]
 
   try {
     const subtotal = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
@@ -131,29 +153,14 @@ router.post('/invoices', async (req, res) => {
   }
 });
 
-// GET: جلب قائمة الفواتير لصفحة المحاسبة
-router.get('/invoices', async (req, res) => {
+// GET: جلب جميع الفواتير (للمحاسبة والاستقبال) مع إمكانية الفلترة
+router.get('/invoices', authenticate, async (req, res) => {
+  const { status } = req.query;
   try {
     const invoices = await prisma.invoice.findMany({
+      where: status ? { status } : {},
       include: {
         patient: { include: { user: { select: { name: true, phone: true } } } },
-        items: true
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(invoices);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في جلب الفواتير' });
-  }
-});
-
-// GET: جلب جميع الفواتير المعلقة (للاستقبال والمدير)
-router.get('/invoices', authenticate, async (req, res) => {
-  try {
-    const invoices = await prisma.invoice.findMany({
-      where: { status: 'PENDING' },
-      include: {
-        patient: { include: { user: true } },
         items: true
       },
       orderBy: { createdAt: 'desc' }

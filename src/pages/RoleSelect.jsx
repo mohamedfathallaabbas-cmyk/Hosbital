@@ -9,93 +9,29 @@ import {
 } from 'lucide-react';
 
 const roles = [
-  {
-    id: 'patient',
-    label: 'مريض',
-    sublabel: 'Patient',
-    icon: User,
-    color: '#2563eb',
-    bg: 'rgba(37,99,235,0.1)',
-    gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)',
-    desc: 'عرض المواعيد والسجل الطبي',
-    path: '/patient/dashboard',
-  },
-  {
-    id: 'doctor',
-    label: 'طبيب',
-    sublabel: 'Doctor',
-    icon: Stethoscope,
-    color: '#14b8a6',
-    bg: 'rgba(20,184,166,0.1)',
-    gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)',
-    desc: 'إدارة المرضى والجداول',
-    path: '/doctor/dashboard',
-  },
-  {
-    id: 'reception',
-    label: 'استقبال',
-    sublabel: 'Reception',
-    icon: Building2,
-    color: '#f59e0b',
-    bg: 'rgba(245,158,11,0.1)',
-    gradient: 'linear-gradient(135deg, #f59e0b, #d97706)',
-    desc: 'الحجوزات والمرضى الجدد',
-    path: '/reception/dashboard',
-  },
-  {
-    id: 'pharmacist',
-    label: 'صيدلي',
-    sublabel: 'Pharmacy',
-    icon: Stethoscope, // Using an available icon
-    color: '#10b981',
-    bg: 'rgba(16,185,129,0.1)',
-    gradient: 'linear-gradient(135deg, #10b981, #059669)',
-    desc: 'صرف الأدوية والجرد',
-    path: '/pharmacy/dashboard',
-  },
-  {
-    id: 'admin',
-    label: 'إدارة تشغيلية',
-    sublabel: 'Admin',
-    icon: Settings,
-    color: '#8b5cf6',
-    bg: 'rgba(139,92,246,0.1)',
-    gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-    desc: 'إدارة تشغيلية للنظام',
-    path: '/admin/dashboard',
-  },
-  {
-    id: 'manager',
-    label: 'مدير مالي',
-    sublabel: 'Manager',
-    icon: TrendingUp,
-    color: '#ef4444',
-    bg: 'rgba(239,68,68,0.1)',
-    gradient: 'linear-gradient(135deg, #ef4444, #dc2626)',
-    desc: 'الماليات والتقارير العليا',
-    path: '/manager/dashboard',
-  },
-  {
-    id: 'lab',
-    label: 'فني مختبر',
-    sublabel: 'Lab & Radiology',
-    icon: FlaskConical,
-    color: '#3b82f6',
-    bg: 'rgba(59,130,246,0.1)',
-    gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-    desc: 'إدارة التحاليل والأشعة والنتائج',
-    path: '/lab/dashboard',
-  },
+  { id: 'patient', label: 'مريض', sublabel: 'Patient', icon: User, color: '#2563eb', bg: 'rgba(37,99,235,0.1)', gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)', desc: 'عرض المواعيد والسجل الطبي', path: '/patient/dashboard' },
+  { id: 'doctor', label: 'طبيب', sublabel: 'Doctor', icon: Stethoscope, color: '#14b8a6', bg: 'rgba(20,184,166,0.1)', gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)', desc: 'إدارة المرضى والجداول', path: '/doctor/dashboard' },
+  { id: 'nurse', label: 'ممرض', sublabel: 'Nurse', icon: HeartPulse, color: '#f43f5e', bg: 'rgba(244,63,94,0.1)', gradient: 'linear-gradient(135deg, #f43f5e, #e11d48)', desc: 'متابعة المرضى المنومين', path: '/nursing/dashboard' },
+  { id: 'reception', label: 'استقبال', sublabel: 'Reception', icon: Building2, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', desc: 'الحجوزات والمرضى الجدد', path: '/reception/dashboard' },
+  { id: 'pharmacist', label: 'صيدلي', sublabel: 'Pharmacy', icon: Stethoscope, color: '#10b981', bg: 'rgba(16,185,129,0.1)', gradient: 'linear-gradient(135deg, #10b981, #059669)', desc: 'صرف الأدوية والجرد', path: '/pharmacy/dashboard' },
+  { id: 'lab_tech', label: 'فني مختبر', sublabel: 'Lab & Radiology', icon: FlaskConical, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', desc: 'إدارة التحاليل والأشعة والنتائج', path: '/lab/dashboard' },
+  { id: 'admin', label: 'مدير النظام', sublabel: 'Admin', icon: Settings, color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', desc: 'إدارة تشغيلية للنظام', path: '/admin/dashboard' },
+  { id: 'manager', label: 'مدير المستشفى', sublabel: 'Manager', icon: TrendingUp, color: '#ef4444', bg: 'rgba(239,68,68,0.1)', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', desc: 'التقارير والإحصائيات الشاملة', path: '/admin/dashboard' },
+  { id: 'financial_manager', label: 'مدير مالي', sublabel: 'Finance', icon: TrendingUp, color: '#eab308', bg: 'rgba(234,179,8,0.1)', gradient: 'linear-gradient(135deg, #eab308, #ca8a04)', desc: 'الماليات والرواتب والفواتير', path: '/admin/dashboard' },
+  { id: 'operations_manager', label: 'مدير تشغيل', sublabel: 'Operations', icon: Settings, color: '#6366f1', bg: 'rgba(99,102,241,0.1)', gradient: 'linear-gradient(135deg, #6366f1, #4f46e5)', desc: 'إدارة شؤون الموظفين', path: '/admin/dashboard' },
 ];
 
 const credentials = {
-  patient: { email: 'patient@alshifa.com', pass: '123456' },
-  doctor: { email: 'doctor@alshifa.com', pass: '123456' },
-  reception: { email: 'reception@alshifa.com', pass: '123456' },
-  pharmacist: { email: 'pharmacy@alshifa.com', pass: '123456' },
+  patient: { email: 'patient1@alshifa.com', pass: '123456' },
+  doctor: { email: 'magdy@alshifa.com', pass: '123456' },
+  nurse: { email: 'nurse1@alshifa.com', pass: '123456' },
+  reception: { email: 'reception1@alshifa.com', pass: '123456' },
+  pharmacist: { email: 'pharmacist@alshifa.com', pass: '123456' },
+  lab_tech: { email: 'lab@alshifa.com', pass: '123456' },
   admin: { email: 'admin@alshifa.com', pass: '123456' },
   manager: { email: 'manager@alshifa.com', pass: '123456' },
-  lab: { email: 'lab@alshifa.com', pass: '123456' },
+  financial_manager: { email: 'finance@alshifa.com', pass: '123456' },
+  operations_manager: { email: 'operations@alshifa.com', pass: '123456' },
 };
 
 const userNames = {
@@ -147,11 +83,14 @@ export default function RoleSelect() {
       const rolePaths = {
         patient: '/patient/dashboard',
         doctor: '/doctor/dashboard',
+        nurse: '/nursing/dashboard',
         reception: '/reception/dashboard',
         admin: '/admin/dashboard',
-        manager: '/manager/dashboard',
+        manager: '/admin/dashboard',
+        financial_manager: '/admin/dashboard',
+        operations_manager: '/admin/dashboard',
         pharmacist: '/pharmacy/dashboard',
-        lab: '/lab/dashboard'
+        lab_tech: '/lab/dashboard'
       };
 
       login({

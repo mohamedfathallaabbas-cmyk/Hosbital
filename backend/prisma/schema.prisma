@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -16,7 +16,7 @@ model User {
   email     String   @unique
   password  String
   name      String
-  role      String   @default("PATIENT") // PATIENT, DOCTOR, NURSE, RECEPTION, ADMIN, MANAGER, PHARMACIST, LAB_TECH
+  role      String   @default("PATIENT") // PATIENT, DOCTOR, NURSE, RECEPTION, ADMIN, MANAGER, FINANCIAL_MANAGER, OPERATIONS_MANAGER, PHARMACIST, LAB_TECH, STAFF
   phone     String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -41,10 +41,19 @@ model Staff {
   id            Int      @id @default(autoincrement())
   userId        Int      @unique
   user          User     @relation(fields: [userId], references: [id])
+  category      String   @default("MEDICAL") // MEDICAL, ADMIN_STAFF, SECURITY, CLEANING, MAINTENANCE
   jobTitle      String   // ممرض، موظف استقبال، الخ
   shift         String?  // صباحي، مسائي
   salary        Float?
+  allowances    Float?
   hireDate      DateTime @default(now())
+  nationalId    String?  @unique
+  address       String?
+  department    String?
+  notes         String?
+
+  nurseNotes         NurseNote[]
+  nursingAssignments NursingAssignment[]
 }
 
 model Doctor {
@@ -95,15 +104,21 @@ model Appointment {
   patient     Patient  @relation(fields: [patientId], references: [id])
   doctorId    Int
   doctor      Doctor   @relation(fields: [doctorId], references: [id])
+  admissionId Int?
+  admission   Admission? @relation(fields: [admissionId], references: [id])
   
   date        DateTime
   timeSlot    String?
-  status      String   @default("SCHEDULED") // SCHEDULED, WAITING, IN_PROGRESS, COMPLETED, CANCELLED
-  type        String   @default("CHECKUP") // كشف، متابعة، طوارئ
+  status      String   @default("SCHEDULED") // SCHEDULED, WAITING, IN_PROGRESS, COMPLETED, CANCELLED, REJECTED
+  type        String   @default("CHECKUP") // كشف، متابعة، طوارئ, FOLLOWUP_INPATIENT
   queueNumber Int?
+  rejectionReason String?
 
   triage        Triage?
   medicalRecord MedicalRecord?
+
+  @@index([status])
+  @@index([patientId])
 }
 
 model Triage {
@@ -130,13 +145,15 @@ model MedicalRecord {
   appointmentId Int      @unique
   appointment   Appointment @relation(fields: [appointmentId], references: [id])
   
-  complaint     String
-  diagnosis     String
+  complaint     String?
+  diagnosis     String?
   treatmentPlan String?
   notes         String?
   
   prescriptions Prescription[]
   createdAt     DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 // -------------------------------------------------
@@ -173,6 +190,7 @@ model Bed {
   isOccupied  Boolean  @default(false)
   
   admissions  Admission[]
+  nursingAssignments NursingAssignment[]
 }
 
 model Admission {
@@ -188,6 +206,33 @@ model Admission {
   status      String   @default("ADMITTED") // منوم، خرج
   admittedAt  DateTime @default(now())
   dischargedAt DateTime?
+
+  followUpAppointments Appointment[]
+  nurseNotes         NurseNote[]
+
+  @@index([patientId])
+}
+
+model NurseNote {
+  id          Int      @id @default(autoincrement())
+  admissionId Int
+  admission   Admission @relation(fields: [admissionId], references: [id])
+  nurseId     Int
+  nurse       Staff    @relation(fields: [nurseId], references: [id])
+  content     String
+  vitalSigns  String?
+  createdAt   DateTime @default(now())
+}
+
+model NursingAssignment {
+  id          Int      @id @default(autoincrement())
+  nurseId     Int
+  nurse       Staff    @relation(fields: [nurseId], references: [id])
+  bedId       Int
+  bed         Bed      @relation(fields: [bedId], references: [id])
+  shift       String
+  assignedAt  DateTime @default(now())
+  isActive    Boolean  @default(true)
 }
 
 // -------------------------------------------------
@@ -214,6 +259,8 @@ model Prescription {
   
   items           PrescriptionItem[]
   createdAt       DateTime @default(now())
+
+  @@index([status])
 }
 
 model PrescriptionItem {
@@ -257,6 +304,8 @@ model LabOrder {
   
   orderedAt   DateTime @default(now())
   completedAt DateTime?
+
+  @@index([status])
 }
 
 // -------------------------------------------------
@@ -303,6 +352,10 @@ model Invoice {
   
   createdAt   DateTime @default(now())
   dueDate     DateTime?
+
+  @@index([status])
+  @@index([patientId])
+  @@index([createdAt])
 }
 
 model InvoiceItem {

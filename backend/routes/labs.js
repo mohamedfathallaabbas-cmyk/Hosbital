@@ -1,6 +1,6 @@
 import express from 'express';
 import { prisma } from '../index.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -19,6 +19,21 @@ router.get('/orders', authenticate, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'خطأ في جلب طلبات المعامل' });
+  }
+});
+
+// GET: جلب طلبات تحليل مريض معين
+router.get('/orders/patient/:patientId', authenticate, async (req, res) => {
+  const { patientId } = req.params;
+  try {
+    const orders = await prisma.labOrder.findMany({
+      where: { patientId: parseInt(patientId) },
+      include: { test: true, doctor: { include: { user: true } } },
+      orderBy: { orderedAt: 'desc' }
+    });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب تحاليل المريض' });
   }
 });
 
@@ -58,8 +73,8 @@ router.post('/orders', authenticate, async (req, res) => {
       data: {
         invoiceId: invoice.id,
         description: `تحليل/أشعة: ${newOrder.test.name}`,
-        amount: newOrder.test.cost,
-        quantity: 1
+        amount: newOrder.test.cost
+        // تم إزالة حقل quantity لأنه غير موجود في قاعدة البيانات
       }
     });
 
@@ -103,6 +118,19 @@ router.get('/catalog', async (req, res) => {
     res.json(catalog);
   } catch (error) {
     res.status(500).json({ error: 'خطأ في جلب كتالوج التحاليل' });
+  }
+});
+
+// POST: إضافة تحليل جديد للكتالوج
+router.post('/catalog', authenticate, requireRole('ADMIN', 'MANAGER'), async (req, res) => {
+  const { name, type, cost } = req.body;
+  try {
+    const newTest = await prisma.labTestCatalog.create({
+      data: { name, type, cost: parseFloat(cost) }
+    });
+    res.status(201).json(newTest);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في إضافة التحليل للكتالوج' });
   }
 });
 

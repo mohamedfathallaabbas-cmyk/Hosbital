@@ -1,7 +1,11 @@
 import express from 'express';
 import { prisma } from '../index.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// جميع المسارات محمية
+router.use(authenticate);
 
 // GET: عرض التاريخ الطبي لمريض معين
 router.get('/patient/:patientId', async (req, res) => {
@@ -22,6 +26,37 @@ router.get('/patient/:patientId', async (req, res) => {
   }
 });
 
+// GET: جلب سجل طبي واحد
+router.get('/:id', async (req, res) => {
+  try {
+    const record = await prisma.medicalRecord.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: {
+        appointment: { include: { doctor: { include: { user: true } }, patient: { include: { user: true } } } },
+        prescriptions: { include: { items: { include: { medicine: true } } } }
+      }
+    });
+    if (!record) return res.status(404).json({ error: 'السجل غير موجود' });
+    res.json(record);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب السجل الطبي' });
+  }
+});
+
+// PATCH: تعديل السجل الطبي
+router.patch('/:id', async (req, res) => {
+  const { complaint, diagnosis, treatmentPlan, notes } = req.body;
+  try {
+    const updated = await prisma.medicalRecord.update({
+      where: { id: parseInt(req.params.id) },
+      data: { complaint, diagnosis, treatmentPlan, notes }
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في تعديل السجل الطبي' });
+  }
+});
+
 // POST: إضافة كشف طبي جديد وروشتة
 router.post('/', async (req, res) => {
   const { appointmentId, complaint, diagnosis, treatmentPlan, notes, prescriptions } = req.body;
@@ -31,10 +66,10 @@ router.post('/', async (req, res) => {
     const newRecord = await prisma.medicalRecord.create({
       data: {
         appointmentId: parseInt(appointmentId),
-        complaint,
-        diagnosis,
-        treatmentPlan,
-        notes
+        complaint: complaint || null,
+        diagnosis: diagnosis || null,
+        treatmentPlan: treatmentPlan || null,
+        notes: notes || null
       }
     });
 

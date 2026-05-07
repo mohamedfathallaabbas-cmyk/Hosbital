@@ -4,29 +4,25 @@ import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// GET: عرض المواعيد — كل دور يرى ما يخصه تلقائياً
+// GET: عرض المواعيد
 router.get('/', authenticate, async (req, res) => {
   const { status, patientId: queryPatientId } = req.query;
-  const { id: userId, role } = req.user; // من الـ JWT token
+  const { id: userId, role } = req.user; 
 
   try {
     let whereClause = {};
 
     if (role === 'DOCTOR') {
-      // الطبيب يرى مواعيده هو فقط
       const doctorProfile = await prisma.doctor.findUnique({ where: { userId } });
       if (!doctorProfile) return res.status(404).json({ error: 'الملف الطبي غير موجود' });
       whereClause.doctorId = doctorProfile.id;
     } else if (role === 'PATIENT') {
-      // المريض يرى مواعيده هو فقط
       const patientProfile = await prisma.patient.findUnique({ where: { userId } });
       if (!patientProfile) return res.status(404).json({ error: 'ملف المريض غير موجود' });
       whereClause.patientId = patientProfile.id;
     } else if (queryPatientId) {
-      // استقبال/ادمن ممكن يفلتر بـ patientId
       whereClause.patientId = parseInt(queryPatientId);
     }
-    // RECEPTION, ADMIN, MANAGER — يشوفوا الكل (بدون فلتر)
 
     if (status) whereClause.status = status;
 
@@ -42,28 +38,83 @@ router.get('/', authenticate, async (req, res) => {
 
     res.json(appointments);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: 'خطأ في جلب المواعيد' });
   }
 });
 
-// POST: حجز موعد جديد (المريض أو الاستقبال)
+// GET: مواعيد اليوم
+router.get('/today', authenticate, async (req, res) => {
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        date: { gte: todayStart, lte: todayEnd }
+      },
+      include: {
+        patient: { include: { user: { select: { name: true, phone: true } } } },
+        doctor: { include: { user: { select: { name: true } }, department: true } },
+        triage: true
+      },
+      orderBy: { timeSlot: 'asc' }
+    });
+    res.json(appointments);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب مواعيد اليوم' });
+  }
+});
+
+// GET: مواعيد المتابعة لمريض منوم
+router.get('/admission/:admissionId/followups', authenticate, async (req, res) => {
+  const { admissionId } = req.params;
+  try {
+    const followups = await prisma.appointment.findMany({
+      where: { admissionId: parseInt(admissionId), type: 'FOLLOWUP_INPATIENT' },
+      include: { doctor: { include: { user: true } } }
+    });
+    res.json(followups);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب مواعيد المتابعة' });
+  }
+});
+
+// GET: موعد واحد بتفاصيله
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: {
+        patient: { include: { user: true } },
+        doctor: { include: { user: true, department: true } },
+        triage: true,
+        medicalRecord: true
+      }
+    });
+    if (!appointment) return res.status(404).json({ error: 'الموعد غير موجود' });
+    res.json(appointment);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب الموعد' });
+  }
+});
+
+// POST: حجز موعد جديد
 router.post('/', authenticate, async (req, res) => {
-  const { patientId, doctorId, date, timeSlot, type, departmentId } = req.body;
+  const { patientId, doctorId, date, timeSlot, type, departmentId, admissionId } = req.body;
   const { role, id: userId } = req.user;
 
   try {
     let finalPatientId = patientId ? parseInt(patientId) : null;
     let finalDoctorId = doctorId ? parseInt(doctorId) : null;
 
-    // إذا كان المريض هو من يحجز، نجلب patientId من ملفه تلقائياً
     if (role === 'PATIENT' && !finalPatientId) {
       const patientProfile = await prisma.patient.findUnique({ where: { userId } });
       if (!patientProfile) return res.status(400).json({ error: 'لم يتم العثور على ملف المريض' });
       finalPatientId = patientProfile.id;
     }
 
-    // إذا لم يُحدد طبيب، نختار أول طبيب في القسم المطلوب
     if (!finalDoctorId && departmentId) {
       const doctor = await prisma.doctor.findFirst({
         where: { departmentId: parseInt(departmentId) }
@@ -77,8 +128,6 @@ router.post('/', authenticate, async (req, res) => {
       finalDoctorId = anyDoctor.id;
     }
 
-    // المريض يحجز → حالة SCHEDULED (تنتظر موافقة الاستقبال)
-    // الاستقبال يحجز → حالة WAITING مباشرة
     const initialStatus = role === 'PATIENT' ? 'SCHEDULED' : 'WAITING';
 
     const newAppointment = await prisma.appointment.create({
@@ -88,7 +137,8 @@ router.post('/', authenticate, async (req, res) => {
         date: new Date(date),
         timeSlot,
         type: type || 'CHECKUP',
-        status: initialStatus
+        status: initialStatus,
+        admissionId: admissionId ? parseInt(admissionId) : null
       },
       include: {
         patient: { include: { user: true } },
@@ -98,7 +148,6 @@ router.post('/', authenticate, async (req, res) => {
 
     res.status(201).json({ message: 'تم حجز الموعد بنجاح', appointment: newAppointment });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: 'حدث خطأ أثناء الحجز' });
   }
 });
@@ -107,7 +156,6 @@ router.post('/', authenticate, async (req, res) => {
 router.patch('/:id/status', authenticate, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-
   try {
     const updated = await prisma.appointment.update({
       where: { id: parseInt(id) },
@@ -116,6 +164,60 @@ router.patch('/:id/status', authenticate, async (req, res) => {
     res.json(updated);
   } catch (error) {
     res.status(500).json({ error: 'فشل تحديث حالة الموعد' });
+  }
+});
+
+// PATCH: رفض الموعد
+router.patch('/:id/reject', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { rejectionReason } = req.body;
+  if (!rejectionReason) return res.status(400).json({ error: 'سبب الرفض إجباري' });
+
+  try {
+    const updated = await prisma.appointment.update({
+      where: { id: parseInt(id) },
+      data: { status: 'REJECTED', rejectionReason }
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'فشل رفض الموعد' });
+  }
+});
+
+// POST: قياسات Triage
+router.post('/:id/triage', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { bloodPressure, heartRate, temperature, oxygenLevel, priorityLevel, notes } = req.body;
+
+  try {
+    const triage = await prisma.triage.upsert({
+      where: { appointmentId: parseInt(id) },
+      update: { bloodPressure, heartRate: parseInt(heartRate), temperature: parseFloat(temperature), oxygenLevel: parseInt(oxygenLevel), priorityLevel, notes },
+      create: {
+        appointmentId: parseInt(id),
+        bloodPressure,
+        heartRate: parseInt(heartRate),
+        temperature: parseFloat(temperature),
+        oxygenLevel: parseInt(oxygenLevel),
+        priorityLevel,
+        notes
+      }
+    });
+    res.status(201).json({ message: 'تم تسجيل القياسات بنجاح', triage });
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في تسجيل القياسات' });
+  }
+});
+
+// DELETE: إلغاء موعد
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    await prisma.appointment.delete({
+      where: { id: parseInt(req.params.id) }
+    });
+    res.json({ message: 'تم إلغاء الموعد' });
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في إلغاء الموعد' });
   }
 });
 

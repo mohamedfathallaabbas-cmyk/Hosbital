@@ -165,6 +165,35 @@ router.patch('/users/:id', requireRole('ADMIN'), async (req, res) => {
   }
 });
 
+router.delete('/users/:id', requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.user.delete({ where: { id: parseInt(id) } });
+    res.json({ message: 'تم حذف المستخدم بنجاح' });
+  } catch (err) {
+    res.status(500).json({ error: 'خطأ في حذف المستخدم' });
+  }
+});
+
+router.get('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(id) },
+      select: {
+        id: true, name: true, email: true, role: true, phone: true, isActive: true, createdAt: true,
+        doctorProfile: { include: { department: true } },
+        staffProfile: true,
+        patientProfile: true
+      }
+    });
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'خطأ في جلب المستخدم' });
+  }
+});
+
 // ========================
 // إدارة الأقسام
 // ========================

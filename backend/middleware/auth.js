@@ -22,7 +22,8 @@ export function authenticate(req, res, next) {
 export function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'غير مصرح' });
-    if (!roles.includes(req.user.role.toUpperCase())) {
+    const userRole = req.user?.role?.toUpperCase() ?? 'GUEST';
+    if (!roles.includes(userRole)) {
       return res.status(403).json({ error: `هذه العملية تتطلب صلاحيات: ${roles.join(', ')}` });
     }
     next();
