@@ -1,12 +1,12 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../index.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, enforcePatientOwnership, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // GET: البحث عن جميع المرضى أو مريض محدد
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, requireRole('ADMIN', 'DOCTOR', 'NURSE', 'RECEPTION', 'MANAGER'), async (req, res) => {
   const { search } = req.query;
   try {
     const patients = await prisma.patient.findMany({
@@ -28,7 +28,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // GET: جلب مريض واحد بتفاصيله الكاملة
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', authenticate, enforcePatientOwnership, async (req, res) => {
   try {
     const patient = await prisma.patient.findUnique({
       where: { id: parseInt(req.params.id) },
@@ -42,7 +42,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // GET: ملخص المريض (مواعيد، سجلات، فواتير)
-router.get('/:id/summary', authenticate, async (req, res) => {
+router.get('/:id/summary', authenticate, enforcePatientOwnership, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const patient = await prisma.patient.findUnique({
@@ -72,7 +72,7 @@ router.get('/:id/summary', authenticate, async (req, res) => {
 });
 
 // PATCH: تعديل بيانات المريض
-router.patch('/:id', authenticate, async (req, res) => {
+router.patch('/:id', authenticate, enforcePatientOwnership, async (req, res) => {
   const { weight, height, bloodType, allergies, chronicDiseases, emergencyContact, phone } = req.body;
   try {
     const id = parseInt(req.params.id);

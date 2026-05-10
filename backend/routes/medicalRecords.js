@@ -214,6 +214,12 @@ router.get('/:id', async (req, res) => {
       }
     });
     if (!record) return res.status(404).json({ error: 'السجل غير موجود' });
+    
+    // Authorization check for patients
+    if (req.user.role === 'PATIENT' && record.appointment.patientId !== req.user.patientId) {
+      return res.status(403).json({ error: 'غير مصرح لك بعرض هذا السجل' });
+    }
+    
     res.json(record);
   } catch (error) {
     res.status(500).json({ error: 'خطأ في جلب السجل الطبي' });

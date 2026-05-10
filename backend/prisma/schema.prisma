@@ -29,6 +29,8 @@ model User {
   
   attendance     Attendance[]
   articles       Article[]
+  approvedPayrolls Payroll[] @relation("PayrollApprover")
+  reviewedLeaves   LeaveRequest[] @relation("LeaveReviewer")
 }
 
 model Department {
@@ -58,6 +60,9 @@ model Staff {
 
   nurseNotes         NurseNote[]
   nursingAssignments NursingAssignment[]
+  payrolls           Payroll[]
+  salaryAdjustments  SalaryAdjustment[]
+  leaveRequests      LeaveRequest[]
 }
 
 model Doctor {
@@ -456,4 +461,68 @@ model Article {
   published   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// -------------------------------------------------
+// 10. Payroll & Leave Management (الرواتب والإجازات)
+// -------------------------------------------------
+
+model Payroll {
+  id            Int      @id @default(autoincrement())
+  employeeId    Int
+  employee      Staff    @relation(fields: [employeeId], references: [id])
+  month         Int
+  year          Int
+  baseSalary    Float    @default(0.0)
+  allowances    Float    @default(0.0)
+  deductions    Float    @default(0.0)
+  overtime      Float    @default(0.0)
+  bonus         Float    @default(0.0)
+  netSalary     Float    @default(0.0)
+  paymentStatus String   @default("PENDING") // PENDING, APPROVED, PAID
+  paidAt        DateTime?
+  approvedBy    Int?
+  approver      User?    @relation(name: "PayrollApprover", fields: [approvedBy], references: [id])
+  createdAt     DateTime @default(now())
+
+  items         PayrollItem[]
+
+  @@unique([employeeId, month, year])
+}
+
+model PayrollItem {
+  id          Int      @id @default(autoincrement())
+  payrollId   Int
+  payroll     Payroll  @relation(fields: [payrollId], references: [id])
+  type        String   // ALLOWANCE, DEDUCTION, OVERTIME, BONUS
+  amount      Float
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model SalaryAdjustment {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  employee    Staff    @relation(fields: [employeeId], references: [id])
+  type        String   // ALLOWANCE, DEDUCTION, BONUS
+  amount      Float
+  reason      String
+  month       Int
+  year        Int
+  createdAt   DateTime @default(now())
+}
+
+model LeaveRequest {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  employee    Staff    @relation(fields: [employeeId], references: [id])
+  leaveType   String   // ANNUAL, SICK, UNPAID, MATERNITY
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedBy  Int?
+  reviewer    User?    @relation(name: "LeaveReviewer", fields: [reviewedBy], references: [id])
+  reviewedAt  DateTime?
+  createdAt   DateTime @default(now())
 }
