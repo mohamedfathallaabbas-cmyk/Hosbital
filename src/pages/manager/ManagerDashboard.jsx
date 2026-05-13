@@ -1,24 +1,26 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../lib/api';
 import {
   LayoutDashboard, DollarSign, TrendingUp, TrendingDown,
   FileText, CreditCard, BarChart3, PieChart, Printer,
   Download, LogOut, HeartPulse, Calendar, Building2,
   Stethoscope, Menu, X, ArrowUpRight, ArrowDownRight,
-  Receipt, ShieldCheck, Clock, AlertCircle
+  Receipt, ShieldCheck, Clock, AlertCircle, CalendarDays,
+  CheckCircle, XCircle, Loader2
 } from 'lucide-react';
 import Topbar from '../../components/hospital/Topbar';
 import StatCard from '../../components/hospital/StatCard';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell } from 'recharts';
 
 const sidebarLinks = [
-  { icon: LayoutDashboard, label: 'لوحة المدير', path: '/manager/dashboard' },
-  { icon: DollarSign, label: 'تقرير الإيرادات', path: '/manager/revenue' },
-  { icon: TrendingDown, label: 'تقرير المصروفات', path: '/manager/expenses' },
-  { icon: ShieldCheck, label: 'تقرير التأمينات', path: '/manager/insurance' },
-  { icon: Receipt, label: 'الفواتير المتأخرة', path: '/manager/outstanding' },
+  { icon: LayoutDashboard, label: 'لوحة المدير',       path: '/manager/dashboard' },
+  { icon: DollarSign,     label: 'تقرير الإيرادات',   path: '/manager/revenue' },
+  { icon: TrendingDown,   label: 'تقرير المصروفات',   path: '/manager/expenses' },
+  { icon: ShieldCheck,    label: 'تقرير التأمينات',   path: '/manager/insurance' },
+  { icon: Receipt,        label: 'الفواتير المتأخرة', path: '/manager/outstanding' },
+  { icon: CalendarDays,   label: 'طلبات الإجازات',    path: '/manager/leaves' },
 ];
 
 const monthlyData = [
@@ -336,6 +338,210 @@ function InsurancePage() {
   );
 }
 
+const LEAVE_TYPE_LABELS = {
+  ANNUAL:    { label: 'سنوية',        color: '#2563eb' },
+  SICK:      { label: 'مرضية',        color: '#dc2626' },
+  UNPAID:    { label: 'بدون راتب',    color: '#d97706' },
+  MATERNITY: { label: 'أمومة',        color: '#7c3aed' },
+};
+
+const STATUS_STYLES = {
+  PENDING:  { label: 'قيد المراجعة', bg: '#fffbeb', border: '#fde68a', color: '#d97706' },
+  APPROVED: { label: 'مقبولة',        bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a' },
+  REJECTED: { label: 'مرفوضة',        bg: '#fef2f2', border: '#fecaca', color: '#dc2626' },
+};
+
+function LeavesPage() {
+  const [leaves, setLeaves]       = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [filter, setFilter]       = useState('PENDING');
+  const [processing, setProcessing] = useState(null);
+  const [toast, setToast]         = useState('');
+
+  const fetchLeaves = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/staff/leaves');
+      setLeaves(res.data);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchLeaves(); }, []);
+
+  const handleStatus = async (id, status) => {
+    setProcessing(id);
+    try {
+      await api.patch(`/staff/leaves/${id}/status`, { status });
+      setLeaves(prev => prev.map(l =>
+        l.id === id ? { ...l, status } : l
+      ));
+      setToast(status === 'APPROVED' ? '✅ تم قبول الإجازة' : '❌ تم رفض الإجازة');
+      setTimeout(() => setToast(''), 3000);
+    } catch (e) {
+      setToast('حدث خطأ، حاول مرة أخرى');
+      setTimeout(() => setToast(''), 3000);
+    } finally { setProcessing(null); }
+  };
+
+  const filtered = leaves.filter(l => filter === 'ALL' ? true : l.status === filter);
+  const pendingCount = leaves.filter(l => l.status === 'PENDING').length;
+
+  return (
+    <div className="p-6 fade-in">
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-2xl bg-slate-900 text-white font-bold text-sm shadow-2xl">
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+        <div>
+          <div className="section-header mb-1">
+            <div className="section-header-line" style={{ background: 'linear-gradient(180deg, #ef4444, #dc2626)' }} />
+            <h3 className="text-xl font-bold">طلبات الإجازة</h3>
+          </div>
+          <p className="text-slate-400 text-sm">مراجعة وقبول أو رفض طلبات إجازة الموظفين</p>
+        </div>
+        {pendingCount > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 font-bold text-sm">
+            <AlertCircle className="w-4 h-4" />
+            {pendingCount} طلب قيد المراجعة
+          </div>
+        )}
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex bg-slate-100 p-1 rounded-2xl w-fit mb-6">
+        {[
+          { v: 'PENDING',  l: `قيد المراجعة (${pendingCount})` },
+          { v: 'APPROVED', l: 'مقبولة' },
+          { v: 'REJECTED', l: 'مرفوضة' },
+          { v: 'ALL',      l: `الكل (${leaves.length})` },
+        ].map(f => (
+          <button key={f.v} onClick={() => setFilter(f.v)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+              filter === f.v ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}>
+            {f.l}
+          </button>
+        ))}
+      </div>
+
+      {/* Leave Cards */}
+      {loading ? (
+        <div className="text-center py-16 text-slate-400">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+          جاري تحميل طلبات الإجازة...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 text-slate-300">
+          <CalendarDays className="w-14 h-14 mx-auto mb-3" />
+          <p className="font-medium">لا توجد طلبات إجازة في هذا التصنيف</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((lv, i) => {
+            const type    = LEAVE_TYPE_LABELS[lv.leaveType] || { label: lv.leaveType, color: '#475569' };
+            const status  = STATUS_STYLES[lv.status]        || STATUS_STYLES.PENDING;
+            const days    = Math.ceil((new Date(lv.endDate) - new Date(lv.startDate)) / (1000*60*60*24)) + 1;
+            const isPending = lv.status === 'PENDING';
+            return (
+              <motion.div key={lv.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                className={`bg-white rounded-2xl p-5 border shadow-sm transition-all ${
+                  isPending ? 'border-amber-200 ring-1 ring-amber-100' : 'border-slate-100'
+                }`}>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  {/* Employee info */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-black text-white flex-shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #475569, #1e293b)' }}>
+                      {lv.employee?.user?.name?.charAt(0) || '؟'}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900">{lv.employee?.user?.name || 'موظف'}</div>
+                      <div className="text-slate-400 text-xs">{lv.employee?.jobTitle || ''} — {lv.employee?.department || ''}</div>
+                      <div className="text-slate-400 text-xs">{lv.employee?.user?.phone || ''}</div>
+                    </div>
+                  </div>
+
+                  {/* Status badge */}
+                  <span className="text-xs font-bold px-3 py-1.5 rounded-xl border"
+                    style={{ color: status.color, background: status.bg, borderColor: status.border }}>
+                    {status.label}
+                  </span>
+                </div>
+
+                {/* Leave details */}
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                    <div className="text-xs text-slate-400 mb-1">نوع الإجازة</div>
+                    <div className="font-bold text-sm" style={{ color: type.color }}>{type.label}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                    <div className="text-xs text-slate-400 mb-1">عدد الأيام</div>
+                    <div className="font-bold text-slate-800">{days} يوم</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                    <div className="text-xs text-slate-400 mb-1">من</div>
+                    <div className="font-bold text-slate-800 text-xs">{new Date(lv.startDate).toLocaleDateString('ar-EG')}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                    <div className="text-xs text-slate-400 mb-1">إلى</div>
+                    <div className="font-bold text-slate-800 text-xs">{new Date(lv.endDate).toLocaleDateString('ar-EG')}</div>
+                  </div>
+                </div>
+
+                {/* Reason */}
+                {lv.reason && (
+                  <div className="mt-3 p-3 rounded-xl bg-blue-50 border border-blue-100">
+                    <span className="text-xs text-blue-400 font-bold">سبب الإجازة: </span>
+                    <span className="text-sm text-blue-700">{lv.reason}</span>
+                  </div>
+                )}
+
+                {/* Action buttons (only for PENDING) */}
+                {isPending && (
+                  <div className="mt-4 flex gap-3 justify-end">
+                    <button
+                      onClick={() => handleStatus(lv.id, 'REJECTED')}
+                      disabled={processing === lv.id}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 font-bold text-sm hover:bg-red-100 transition-colors disabled:opacity-50">
+                      {processing === lv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                      رفض
+                    </button>
+                    <button
+                      onClick={() => handleStatus(lv.id, 'APPROVED')}
+                      disabled={processing === lv.id}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all disabled:opacity-50"
+                      style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+                      {processing === lv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      قبول
+                    </button>
+                  </div>
+                )}
+
+                {/* Reviewer info */}
+                {lv.reviewedAt && (
+                  <div className="mt-3 pt-3 border-t border-slate-50 text-xs text-slate-400 text-left">
+                    تمت المراجعة في {new Date(lv.reviewedAt).toLocaleDateString('ar-EG')}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ManagerDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -405,6 +611,7 @@ export default function ManagerDashboard() {
           <Route path="dashboard" element={<ManagerHome />} />
           <Route path="revenue" element={<RevenuePage />} />
           <Route path="insurance" element={<InsurancePage />} />
+          <Route path="leaves" element={<LeavesPage />} />
           <Route path="expenses" element={
             <div className="p-6">
               <div className="section-header">
