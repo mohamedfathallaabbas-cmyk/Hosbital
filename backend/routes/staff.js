@@ -92,6 +92,83 @@ router.post('/me/attendance', async (req, res) => {
   }
 });
 
+// GET /me/leaves - جلب طلبات إجازة الموظف
+router.get('/me/leaves', async (req, res) => {
+  try {
+    const staffProfile = await prisma.staff.findUnique({ where: { userId: req.user.id } });
+    if (!staffProfile) return res.status(404).json({ error: 'ملف الموظف غير موجود' });
+
+    const leaves = await prisma.leaveRequest.findMany({
+      where: { employeeId: staffProfile.id },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(leaves);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب الإجازات' });
+  }
+});
+
+// POST /me/leaves - تقديم طلب إجازة جديد
+router.post('/me/leaves', async (req, res) => {
+  const { leaveType, startDate, endDate, reason } = req.body;
+  try {
+    const staffProfile = await prisma.staff.findUnique({ where: { userId: req.user.id } });
+    if (!staffProfile) return res.status(404).json({ error: 'ملف الموظف غير موجود' });
+
+    const newLeave = await prisma.leaveRequest.create({
+      data: {
+        employeeId: staffProfile.id,
+        leaveType: leaveType || 'ANNUAL',
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        reason,
+        status: 'PENDING'
+      }
+    });
+    res.status(201).json({ message: 'تم تقديم طلب الإجازة بنجاح', leave: newLeave });
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في تقديم طلب الإجازة' });
+  }
+});
+
+// GET /leaves - جلب جميع الإجازات (للمدير)
+router.get('/leaves', requireRole('ADMIN', 'MANAGER'), async (req, res) => {
+  try {
+    const leaves = await prisma.leaveRequest.findMany({
+      include: {
+        employee: { include: { user: { select: { name: true, email: true, phone: true } } } },
+        reviewer: { select: { name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(leaves);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب طلبات الإجازات' });
+  }
+});
+
+// PATCH /leaves/:id/status - قبول/رفض الإجازة (للمدير)
+router.patch('/leaves/:id/status', requireRole('ADMIN', 'MANAGER'), async (req, res) => {
+  const { status } = req.body; // APPROVED or REJECTED
+  if (!['APPROVED', 'REJECTED'].includes(status)) {
+    return res.status(400).json({ error: 'حالة غير صحيحة' });
+  }
+
+  try {
+    const leave = await prisma.leaveRequest.update({
+      where: { id: parseInt(req.params.id) },
+      data: {
+        status,
+        reviewedBy: req.user.id,
+        reviewedAt: new Date()
+      }
+    });
+    res.json({ message: `تم ${status === 'APPROVED' ? 'قبول' : 'رفض'} الإجازة بنجاح`, leave });
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في تحديث حالة الإجازة' });
+  }
+});
+
 // GET /by-category/:category - موظفين حسب الفئة
 router.get('/by-category/:category', async (req, res) => {
   try {

@@ -17,6 +17,7 @@ import nursingRoutes from './routes/nursing.js';
 import staffRoutes from './routes/staff.js';
 import insuranceRoutes from './routes/insurance.js';
 import reportsRoutes from './routes/reports.js';
+import patientFilesRoutes from './routes/patientFiles.js';
 
 dotenv.config();
 
@@ -24,7 +25,8 @@ const app = express();
 export const prisma = new PrismaClient();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(morgan('dev')); // Logging HTTP requests
 
 // المسارات
@@ -41,6 +43,7 @@ app.use('/api/nursing', nursingRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/insurance', insuranceRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/patient-files', patientFilesRoutes);
 
 app.get('/api', (req, res) => {
   res.json({ message: 'مرحباً بك في سيرفر مستشفى الشفاء API 🏥', status: 'Active' });

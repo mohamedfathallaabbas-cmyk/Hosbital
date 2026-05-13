@@ -95,9 +95,9 @@ export default function Landing() {
             <Link to="/role-select" className="text-white/90 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/10">
               تسجيل الدخول
             </Link>
-            <Link to="/role-select" className="btn-primary-hospital text-sm">
+            <a href="#contact" className="btn-primary-hospital text-sm">
               احجز الآن
-            </Link>
+            </a>
           </div>
 
           <button className="md:hidden text-white" onClick={() => setMobileMenu(!mobileMenu)}>
@@ -114,7 +114,7 @@ export default function Landing() {
               ))}
               <div className="flex gap-3 pt-2">
                 <Link to="/role-select" className="flex-1 text-center text-white border border-white/30 py-2 rounded-xl text-sm">دخول</Link>
-                <Link to="/role-select" className="flex-1 text-center btn-primary-hospital text-sm">احجز الآن</Link>
+                <a href="#contact" className="flex-1 text-center btn-primary-hospital text-sm">احجز الآن</a>
               </div>
             </motion.div>
           )}
@@ -150,10 +150,10 @@ export default function Landing() {
               مستشفى الشفاء — نقدم رعاية طبية استثنائية بأحدث التقنيات وأمهر الأطباء المتخصصين. صحتك هي أولويتنا الأولى والأخيرة.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link to="/role-select" className="btn-primary-hospital flex items-center gap-2 text-base px-8 py-4">
+              <a href="#contact" className="btn-primary-hospital flex items-center gap-2 text-base px-8 py-4">
                 <Calendar className="w-5 h-5" />
                 احجز موعدك الآن
-              </Link>
+              </a>
               <a href="#departments" className="flex items-center gap-2 px-8 py-4 rounded-xl text-white border border-white/20 hover:bg-white/10 transition-all text-base font-semibold">
                 <Activity className="w-5 h-5" />
                 اكتشف خدماتنا
@@ -269,7 +269,7 @@ export default function Landing() {
                 </div>
               ))}
             </div>
-            <Link to="/role-select" className="btn-primary-hospital inline-flex items-center gap-2"><Calendar className="w-4 h-4" />احجز موعدك الآن</Link>
+            <a href="#contact" className="btn-primary-hospital inline-flex items-center gap-2"><Calendar className="w-4 h-4" />احجز موعدك الآن</a>
           </motion.div>
           <motion.div initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="relative">
             <div className="rounded-3xl overflow-hidden shadow-2xl">

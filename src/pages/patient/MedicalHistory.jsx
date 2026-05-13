@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../lib/api';
 import {
   FileText, Pill, Activity, ChevronDown, ChevronUp,
   AlertTriangle, Heart, Droplets, Stethoscope, FlaskConical,
   Printer, Search, Calendar, User, CheckCircle,
-  Thermometer, Wind, Zap, ShieldCheck, Scale, Microscope, Info
+  Thermometer, Wind, Zap, ShieldCheck, Scale, Microscope, Info,
+  Upload, Trash2, Download, FolderOpen, ImageIcon, FileImage, X, Loader2, Eye
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -167,7 +168,95 @@ export default function MedicalHistory() {
   const [search, setSearch] = useState('');
   const [patientData, setPatientData] = useState({ weight: 75, height: 175, bloodType: 'A+' });
 
+  // --- Files state ---
+  const [files, setFiles] = useState([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [uploadSuccess, setUploadSuccess] = useState('');
+  const [fileCategory, setFileCategory] = useState('OTHER');
+  const [fileDesc, setFileDesc] = useState('');
+  const [dragOver, setDragOver] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const formatBytes = (bytes) => {
+    if (!bytes) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const CATEGORY_LABELS = {
+    RADIOLOGY: { label: 'أشعة', color: '#8b5cf6', bg: 'bg-purple-50', border: 'border-purple-200' },
+    LAB_RESULT: { label: 'تحاليل', color: '#2563eb', bg: 'bg-blue-50', border: 'border-blue-200' },
+    REPORT:     { label: 'تقرير', color: '#14b8a6', bg: 'bg-teal-50', border: 'border-teal-200' },
+    OTHER:      { label: 'أخرى', color: '#64748b', bg: 'bg-slate-50', border: 'border-slate-200' },
+  };
+
+  const FILE_ICONS = {
+    pdf:  { Icon: FileText, color: '#ef4444' },
+    jpg:  { Icon: ImageIcon, color: '#f59e0b' },
+    jpeg: { Icon: ImageIcon, color: '#f59e0b' },
+    png:  { Icon: ImageIcon, color: '#f59e0b' }
+  };
+
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
+
+  const fetchFiles = async () => {
+    setFilesLoading(true);
+    try {
+      const res = await api.get('/patient-files');
+      setFiles(res.data);
+    } catch (e) { console.error(e); }
+    finally { setFilesLoading(false); }
+  };
+
+  const handleUpload = async (file) => {
+    if (!file) return;
+    setUploading(true); setUploadError(''); setUploadSuccess('');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', fileCategory);
+    formData.append('description', fileDesc);
+    try {
+      await api.post('/patient-files', formData);
+      setUploadSuccess('تم رفع الملف بنجاح ✔');
+      setFileDesc('');
+      fetchFiles();
+      setTimeout(() => setUploadSuccess(''), 3000);
+    } catch (e) {
+      setUploadError(e?.response?.data?.error || 'حدث خطأ أثناء رفع الملف');
+    } finally { setUploading(false); }
+  };
+
+  const handleDownload = async (id, fileName, isPreview = false) => {
+    try {
+      const res = await api.get(`/patient-files/${id}/download`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: res.headers['content-type'] }));
+      if (isPreview) {
+        setPreviewImage(url);
+      } else {
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
+      }
+    } catch (e) {
+      alert('فشل جلب الملف. قد يكون غير موجود أو لا تملك صلاحية الوصول.');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('هل تريد حذف هذا الملف نهائياً؟')) return;
+    try {
+      await api.delete(`/patient-files/${id}`);
+      setFiles(f => f.filter(x => x.id !== id));
+    } catch (e) { alert('خطأ في الحذف'); }
+  };
 
   useEffect(() => {
     if (user.patientId) {
@@ -190,6 +279,8 @@ export default function MedicalHistory() {
         })
         .catch(console.error)
         .finally(() => setLoading(false));
+
+      fetchFiles();
     }
   }, [user.patientId]);
 
@@ -282,6 +373,11 @@ export default function MedicalHistory() {
           <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
             <button onClick={() => setActiveTab('visits')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'visits' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>زيارات العيادة</button>
             <button onClick={() => setActiveTab('labs')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'labs' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>التحاليل والأشعة</button>
+            <button onClick={() => setActiveTab('files')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'files' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              <span className="flex items-center gap-1.5"><Upload className="w-3.5 h-3.5" />ملفاتي
+                {files.length > 0 && <span className="bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{files.length}</span>}
+              </span>
+            </button>
           </div>
 
           {activeTab === 'visits' && (
@@ -357,6 +453,129 @@ export default function MedicalHistory() {
                   ) : <p className="text-sm text-slate-400 italic">بانتظار صدور النتيجة من المختبر...</p>}
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'files' && (
+            <div className="space-y-5">
+              {/* Upload Zone */}
+              <div
+                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
+                  dragOver ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-slate-50 hover:border-blue-400 hover:bg-blue-50/50'
+                }`}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleUpload(f); }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input ref={fileInputRef} type="file" className="hidden"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={e => handleUpload(e.target.files[0])} />
+
+                {uploading ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                    <p className="text-blue-600 font-semibold">جاري رفع الملف...</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center">
+                      <Upload className="w-7 h-7 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-700">اسحب وأفلت الملف هنا</p>
+                      <p className="text-slate-400 text-sm mt-1">أو اضغط للاختيار</p>
+                      <p className="text-slate-300 text-xs mt-2">PDF (10MB), JPG/PNG (5MB)</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Category + Description */}
+              <div className="flex flex-wrap gap-3" onClick={e => e.stopPropagation()}>
+                <select
+                  value={fileCategory}
+                  onChange={e => setFileCategory(e.target.value)}
+                  className="input-hospital flex-1 min-w-40"
+                >
+                  <option value="RADIOLOGY">تصنيف: أشعة</option>
+                  <option value="LAB_RESULT">تصنيف: تحاليل</option>
+                  <option value="REPORT">تصنيف: تقرير</option>
+                  <option value="OTHER">تصنيف: أخرى</option>
+                </select>
+                <input
+                  value={fileDesc}
+                  onChange={e => setFileDesc(e.target.value)}
+                  placeholder="وصف اختياري (مثل: أشعة صدر 2025)"
+                  className="input-hospital flex-[2] min-w-40"
+                />
+              </div>
+
+              {/* Messages */}
+              {uploadSuccess && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium">
+                  <CheckCircle className="w-4 h-4" />{uploadSuccess}
+                </div>
+              )}
+              {uploadError && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+                  <AlertTriangle className="w-4 h-4" />{uploadError}
+                  <button onClick={() => setUploadError('')} className="mr-auto"><X className="w-4 h-4" /></button>
+                </div>
+              )}
+
+              {/* Files List */}
+              {filesLoading ? (
+                <div className="text-center py-10 text-slate-400"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />جاري تحميل الملفات...</div>
+              ) : files.length === 0 ? (
+                <div className="text-center py-16 text-slate-300">
+                  <FolderOpen className="w-14 h-14 mx-auto mb-3" />
+                  <p className="font-medium">لا توجد ملفات طبية مرفوعة بعد</p>
+                  <p className="text-sm mt-1">ارفع ملفات أشعتك وتحاليلك هنا</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-slate-400 text-sm">{files.length} ملف</p>
+                  {files.map((f, i) => {
+                    const ext = f.fileType?.toLowerCase() || 'pdf';
+                    const { Icon, color } = FILE_ICONS[ext] || { Icon: FileText, color: '#64748b' };
+                    const cat = CATEGORY_LABELS[f.category] || CATEGORY_LABELS.OTHER;
+                    return (
+                      <motion.div key={f.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all"
+                      >
+                        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}15` }}>
+                          <Icon className="w-6 h-6" style={{ color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-800 truncate text-sm">{f.fileName}</p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className={`text-xs px-2 py-0.5 rounded-lg font-medium border ${cat.bg} ${cat.border}`}
+                              style={{ color: cat.color }}>{cat.label}</span>
+                            {f.fileSize && <span className="text-slate-400 text-xs">{formatBytes(f.fileSize)}</span>}
+                            {f.description && <span className="text-slate-400 text-xs truncate">{f.description}</span>}
+                            <span className="text-slate-300 text-xs">{new Date(f.uploadedAt).toLocaleDateString('ar-EG')}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {['jpg', 'jpeg', 'png'].includes(ext) && (
+                            <button onClick={() => handleDownload(f.id, f.fileName, true)}
+                              className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500 hover:bg-teal-100 transition-colors"
+                              title="معاينة"><Eye className="w-4 h-4" /></button>
+                          )}
+                          <button onClick={() => handleDownload(f.id, f.fileName)}
+                            className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 hover:bg-blue-100 transition-colors"
+                            title="تحميل"><Download className="w-4 h-4" /></button>
+                          <button onClick={() => handleDelete(f.id)}
+                            className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors"
+                            title="حذف"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -521,6 +740,25 @@ export default function MedicalHistory() {
 
         </div>
       </div>
+
+      {/* Image Preview Modal */}
+      <AnimatePresence>
+        {previewImage && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setPreviewImage(null)}
+          >
+            <div className="relative max-w-4xl max-h-[90vh] w-full" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setPreviewImage(null)}
+                className="absolute -top-12 right-0 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center backdrop-blur-md transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <img src={previewImage} alt="Preview" className="w-full h-full object-contain rounded-xl shadow-2xl" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <style>{`@media print { .no-print { display: none !important; } }`}</style>
     </div>
