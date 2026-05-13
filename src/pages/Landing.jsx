@@ -1,14 +1,16 @@
-import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart, Phone, Mail, MapPin, Star, ChevronLeft, ChevronRight,
   Activity, Users, Stethoscope, Calendar, Award, Clock,
   Shield, Zap, CheckCircle, ArrowLeft, Menu, X,
-  Microscope, Brain, Bone, Eye, Baby, HeartPulse, Building2, Layers
+  Microscope, Brain, Bone, Baby, HeartPulse, Building2, Layers,
+  UserPlus, AlertTriangle, Eye, EyeOff, ChevronDown, Eye as EyeIcon
 } from 'lucide-react';
 import BlogScroll from '../components/hospital/BlogScroll';
 import BookingSection from '../components/hospital/BookingSection';
+import api from '../lib/api';
 
 const departments = [
   { icon: Heart, name: 'قسم القلب', desc: 'رعاية متكاملة لأمراض القلب والأوعية الدموية', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
@@ -50,8 +52,54 @@ const stats = [
 
 export default function Landing() {
   const [mobileMenu, setMobileMenu] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled]     = useState(false);
   const [activeReview, setActiveReview] = useState(0);
+  const navigate = useNavigate();
+
+  // ── Sign Up Modal State ───────────────────────────────────────────────────
+  const [showSignUp, setShowSignUp] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [signUpError, setSignUpError] = useState('');
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', password: '', confirmPassword: '',
+    nationalId: '', dateOfBirth: '', gender: ''
+  });
+
+  const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSignUp = async () => {
+    setSignUpError('');
+    if (!form.name.trim() || !form.email.trim() || !form.password) {
+      return setSignUpError('الاسم والبريد الإلكتروني وكلمة المرور مطلوبة');
+    }
+    if (form.password.length < 6) {
+      return setSignUpError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+    }
+    if (form.password !== form.confirmPassword) {
+      return setSignUpError('كلمتا المرور غير متطابقتين');
+    }
+    setSubmitting(true);
+    try {
+      const res = await api.post('/auth/register-patient', {
+        name:        form.name.trim(),
+        email:       form.email.trim().toLowerCase(),
+        phone:       form.phone || undefined,
+        password:    form.password,
+        nationalId:  form.nationalId || undefined,
+        dateOfBirth: form.dateOfBirth || undefined,
+        gender:      form.gender || undefined,
+      });
+      // Auto-login: store token & redirect
+      sessionStorage.setItem('hospitalUser', JSON.stringify(res.data.user));
+      setShowSignUp(false);
+      navigate('/patient/dashboard');
+    } catch (err) {
+      setSignUpError(err.response?.data?.error || 'حدث خطأ، يرجى المحاولة مرة أخرى');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -95,6 +143,10 @@ export default function Landing() {
             <Link to="/role-select" className="text-white/90 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/10">
               تسجيل الدخول
             </Link>
+            <button onClick={() => { setShowSignUp(true); setSignUpError(''); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-white/30 text-white hover:bg-white/10 transition-all">
+              <UserPlus className="w-4 h-4" />إنشاء حساب
+            </button>
             <a href="#contact" className="btn-primary-hospital text-sm">
               احجز الآن
             </a>
@@ -112,8 +164,12 @@ export default function Landing() {
               {['الرئيسية', 'الأقسام', 'أطباؤنا', 'المدونة', 'تواصل معنا'].map((item, i) => (
                 <a key={i} href="#" className="text-white/90 py-2 text-sm font-medium border-b border-white/10">{item}</a>
               ))}
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-2 flex-wrap">
                 <Link to="/role-select" className="flex-1 text-center text-white border border-white/30 py-2 rounded-xl text-sm">دخول</Link>
+                <button onClick={() => { setMobileMenu(false); setShowSignUp(true); }}
+                  className="flex-1 text-center bg-white/10 text-white py-2 rounded-xl text-sm border border-white/20">
+                  إنشاء حساب
+                </button>
                 <a href="#contact" className="flex-1 text-center btn-primary-hospital text-sm">احجز الآن</a>
               </div>
             </motion.div>
@@ -154,6 +210,12 @@ export default function Landing() {
                 <Calendar className="w-5 h-5" />
                 احجز موعدك الآن
               </a>
+              <button onClick={() => { setShowSignUp(true); setSignUpError(''); }}
+                className="flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-base transition-all"
+                style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.25)', backdropFilter: 'blur(8px)' }}>
+                <UserPlus className="w-5 h-5" />
+                إنشاء حساب مريض
+              </button>
               <a href="#departments" className="flex items-center gap-2 px-8 py-4 rounded-xl text-white border border-white/20 hover:bg-white/10 transition-all text-base font-semibold">
                 <Activity className="w-5 h-5" />
                 اكتشف خدماتنا
@@ -393,6 +455,190 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      {/* ══════════════════════════════════════════════
+           Sign Up Modal
+         ══════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {showSignUp && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            style={{ background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(8px)' }}
+            onClick={() => setShowSignUp(false)}>
+
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 30 }} transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}>
+
+              {/* Modal Header */}
+              <div className="relative p-6 pb-4" style={{ background: 'linear-gradient(135deg, #1e3a5f, #2563eb)' }}>
+                <div className="absolute top-0 left-0 right-0 bottom-0 rounded-t-3xl overflow-hidden">
+                  <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-20" style={{ background: '#60a5fa' }} />
+                  <div className="absolute -bottom-5 -left-5 w-32 h-32 rounded-full blur-2xl opacity-20" style={{ background: '#14b8a6' }} />
+                </div>
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
+                      <UserPlus className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-white font-black text-xl">إنشاء حساب مريض</h2>
+                      <p className="text-blue-200 text-xs mt-0.5">مستشفى الشفاء — Al-Shifa Hospital</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowSignUp(false)}
+                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4" dir="rtl">
+
+                {/* Error Banner */}
+                <AnimatePresence>
+                  {signUpError && (
+                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />{signUpError}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* ─ Required Fields ─ */}
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">البيانات الأساسية *</p>
+
+                {/* Name */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">الاسم الكامل <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.name} onChange={e => setField('name', e.target.value)}
+                    placeholder="محمد أحمد"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all" />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">البريد الإلكتروني <span className="text-red-500">*</span></label>
+                  <input type="email" value={form.email} onChange={e => setField('email', e.target.value)}
+                    placeholder="example@email.com"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all" dir="ltr" />
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">رقم الهاتف</label>
+                  <input type="tel" value={form.phone} onChange={e => setField('phone', e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all" dir="ltr" />
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">كلمة المرور <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <input type={showPassword ? 'text' : 'password'} value={form.password}
+                      onChange={e => setField('password', e.target.value)}
+                      placeholder="6 أحرف على الأقل"
+                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all" dir="ltr" />
+                    <button type="button" onClick={() => setShowPassword(p => !p)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {/* Password strength bar */}
+                  {form.password && (
+                    <div className="mt-2 flex gap-1">
+                      {[1,2,3,4].map(i => (
+                        <div key={i} className="flex-1 h-1 rounded-full transition-all"
+                          style={{ background: form.password.length >= i*2 ? (form.password.length >= 8 ? '#16a34a' : '#f59e0b') : '#e2e8f0' }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">تأكيد كلمة المرور <span className="text-red-500">*</span></label>
+                  <input type="password" value={form.confirmPassword}
+                    onChange={e => setField('confirmPassword', e.target.value)}
+                    placeholder="أعد كتابة كلمة المرور"
+                    className={`w-full px-4 py-3 rounded-xl border bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all ${
+                      form.confirmPassword && form.confirmPassword !== form.password ? 'border-red-300 ring-1 ring-red-300' : 'border-slate-200'
+                    }`} dir="ltr" />
+                  {form.confirmPassword && form.confirmPassword !== form.password && (
+                    <p className="text-red-500 text-xs mt-1">كلمتا المرور غير متطابقتين</p>
+                  )}
+                </div>
+
+                {/* ─ Optional Medical Fields ─ */}
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide pt-2">بيانات إضافية (اختياري)</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* National ID */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">الرقم القومي</label>
+                    <input type="text" value={form.nationalId} onChange={e => setField('nationalId', e.target.value)}
+                      placeholder="14 رقم"
+                      className="w-full px-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" dir="ltr" />
+                  </div>
+
+                  {/* Date of Birth */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">تاريخ الميلاد</label>
+                    <input type="date" value={form.dateOfBirth} onChange={e => setField('dateOfBirth', e.target.value)}
+                      max={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                  </div>
+                </div>
+
+                {/* Gender */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">الجنس</label>
+                  <div className="relative">
+                    <select value={form.gender} onChange={e => setField('gender', e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent">
+                      <option value="">اختر الجنس</option>
+                      <option value="MALE">ذكر</option>
+                      <option value="FEMALE">أنثى</option>
+                    </select>
+                    <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Terms note */}
+                <p className="text-slate-400 text-xs text-center pt-1">
+                  بإنشاء حسابك توافق على سياسة الخصوصية وشروط الاستخدام
+                </p>
+
+                {/* Submit Button */}
+                <button onClick={handleSignUp} disabled={submitting}
+                  className="w-full py-4 rounded-2xl text-white font-black text-base transition-all disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden"
+                  style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb, #0ea5e9)' }}>
+                  {submitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      جاري إنشاء الحساب...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <UserPlus className="w-5 h-5" />إنشاء حسابي الآن
+                    </span>
+                  )}
+                </button>
+
+                {/* Login link */}
+                <p className="text-center text-slate-500 text-sm">
+                  لديك حساب بالفعل؟{' '}
+                  <Link to="/role-select" onClick={() => setShowSignUp(false)}
+                    className="text-blue-600 font-bold hover:underline">سجّل دخولك هنا</Link>
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

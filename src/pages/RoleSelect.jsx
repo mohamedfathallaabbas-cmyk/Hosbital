@@ -5,7 +5,8 @@ import axios from 'axios';
 import {
   HeartPulse, User, Stethoscope, Building2,
   Settings, TrendingUp, Mail, Lock, Eye, EyeOff,
-  ArrowRight, ChevronLeft, FlaskConical
+  ArrowRight, ChevronLeft, FlaskConical,
+  KeyRound, AlertTriangle, CheckCircle2, ShieldCheck
 } from 'lucide-react';
 
 const roles = [
@@ -54,6 +55,51 @@ export default function RoleSelect() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // ── Forgot Password State ────────────────────────────────────────────────
+  const [forgotStep, setForgotStep] = useState(''); // '' | 'email' | 'reset' | 'done'
+  const [fpEmail, setFpEmail]       = useState('');
+  const [fpNationalId, setFpNationalId] = useState('');
+  const [fpNewPass, setFpNewPass]   = useState('');
+  const [fpConfirm, setFpConfirm]   = useState('');
+  const [fpHasNid, setFpHasNid]     = useState(false);
+  const [fpLoading, setFpLoading]   = useState(false);
+  const [fpError, setFpError]       = useState('');
+  const [fpShowPass, setFpShowPass] = useState(false);
+
+  const openForgot = () => {
+    setFpEmail(email); setFpNationalId(''); setFpNewPass('');
+    setFpConfirm(''); setFpError(''); setForgotStep('email');
+  };
+  const closeForgot = () => setForgotStep('');
+
+  const handleFpStep1 = async () => {
+    setFpError(''); setFpLoading(true);
+    try {
+      const res = await axios.post('http://localhost:5000/api/auth/forgot-password', { email: fpEmail });
+      setFpHasNid(res.data.hasNationalId);
+      setForgotStep('reset');
+    } catch (err) {
+      setFpError(err.response?.data?.error || 'حدث خطأ');
+    } finally { setFpLoading(false); }
+  };
+
+  const handleFpReset = async () => {
+    setFpError('');
+    if (fpNewPass.length < 6) return setFpError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+    if (fpNewPass !== fpConfirm) return setFpError('كلمتا المرور غير متطابقتين');
+    setFpLoading(true);
+    try {
+      await axios.post('http://localhost:5000/api/auth/reset-password', {
+        email: fpEmail,
+        nationalId: fpNationalId || undefined,
+        newPassword: fpNewPass,
+      });
+      setForgotStep('done');
+    } catch (err) {
+      setFpError(err.response?.data?.error || 'حدث خطأ');
+    } finally { setFpLoading(false); }
+  };
 
   const handleRoleSelect = (role) => {
     setSelectedRole(role);
@@ -272,6 +318,17 @@ export default function RoleSelect() {
                     </button>
                   </form>
 
+                  {/* Forgot password link — patients only */}
+                  {selectedRole?.id === 'patient' && (
+                    <div className="mt-4 text-center">
+                      <button type="button" onClick={openForgot}
+                        className="text-blue-600 text-sm hover:underline font-medium flex items-center gap-1 mx-auto">
+                        <KeyRound className="w-4 h-4" />
+                        نسيت كلمة المرور؟
+                      </button>
+                    </div>
+                  )}
+
                   <div className="mt-5 p-3 rounded-xl bg-slate-50 text-center">
                     <p className="text-slate-400 text-xs">بيانات تجريبية — تم تعبئتها تلقائياً</p>
                   </div>
@@ -287,6 +344,158 @@ export default function RoleSelect() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* ════════════════════════════════════════
+           Forgot Password Modal
+         ════════════════════════════════════════ */}
+      <AnimatePresence>
+        {forgotStep !== '' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(6px)' }}
+            onClick={closeForgot}>
+            <motion.div initial={{ scale: 0.92, y: 24 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, y: 24 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+              onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div className="p-6 pb-4" style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)' }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                      <KeyRound className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-white font-black text-lg">استعادة كلمة المرور</h2>
+                      <p className="text-blue-200 text-xs">حسابات المرضى فقط</p>
+                    </div>
+                  </div>
+                  <button onClick={closeForgot}
+                    className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                    <span className="text-white text-lg font-bold leading-none">×</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4" dir="rtl">
+
+                {/* Error */}
+                <AnimatePresence>
+                  {fpError && (
+                    <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />{fpError}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* ── Step 1: Email ── */}
+                {forgotStep === 'email' && (
+                  <>
+                    <p className="text-slate-500 text-sm">أدخل البريد الإلكتروني المرتبط بحسابك كمريض.</p>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">البريد الإلكتروني</label>
+                      <div className="relative">
+                        <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input type="email" value={fpEmail} onChange={e => setFpEmail(e.target.value)}
+                          placeholder="example@email.com" dir="ltr"
+                          className="w-full px-4 py-3 pr-10 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      </div>
+                    </div>
+                    <button onClick={handleFpStep1} disabled={fpLoading || !fpEmail.trim()}
+                      className="w-full py-3 rounded-xl text-white font-bold text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                      style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)' }}>
+                      {fpLoading
+                        ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        : <><ShieldCheck className="w-4 h-4" />التحقق من الحساب</>}
+                    </button>
+                  </>
+                )}
+
+                {/* ── Step 2: Reset ── */}
+                {forgotStep === 'reset' && (
+                  <>
+                    <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 text-sm">
+                      ✅ تم التحقق من البريد الإلكتروني <strong>{fpEmail}</strong>
+                    </div>
+
+                    {fpHasNid && (
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                          الرقم القومي <span className="text-red-500">*</span>
+                        </label>
+                        <input type="text" value={fpNationalId} onChange={e => setFpNationalId(e.target.value)}
+                          placeholder="للتحقق من هويتك" dir="ltr"
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">كلمة المرور الجديدة</label>
+                      <div className="relative">
+                        <input type={fpShowPass ? 'text' : 'password'} value={fpNewPass}
+                          onChange={e => setFpNewPass(e.target.value)}
+                          placeholder="6 أحرف على الأقل" dir="ltr"
+                          className="w-full px-4 py-3 pl-11 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                        <button type="button" onClick={() => setFpShowPass(p => !p)}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                          {fpShowPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {fpNewPass && (
+                        <div className="mt-1.5 flex gap-1">
+                          {[1,2,3,4].map(i => (
+                            <div key={i} className="flex-1 h-1 rounded-full transition-all"
+                              style={{ background: fpNewPass.length >= i*2 ? (fpNewPass.length >= 8 ? '#16a34a' : '#f59e0b') : '#e2e8f0' }} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1.5">تأكيد كلمة المرور</label>
+                      <input type="password" value={fpConfirm} onChange={e => setFpConfirm(e.target.value)}
+                        placeholder="أعد الكتابة" dir="ltr"
+                        className={`w-full px-4 py-3 rounded-xl border bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                          fpConfirm && fpConfirm !== fpNewPass ? 'border-red-300' : 'border-slate-200'
+                        }`} />
+                      {fpConfirm && fpConfirm !== fpNewPass && (
+                        <p className="text-red-500 text-xs mt-1">كلمتا المرور غير متطابقتين</p>
+                      )}
+                    </div>
+
+                    <button onClick={handleFpReset} disabled={fpLoading}
+                      className="w-full py-3 rounded-xl text-white font-bold text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+                      style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)' }}>
+                      {fpLoading
+                        ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        : <><KeyRound className="w-4 h-4" />تغيير كلمة المرور</>}
+                    </button>
+                  </>
+                )}
+
+                {/* ── Step 3: Done ── */}
+                {forgotStep === 'done' && (
+                  <div className="text-center py-4">
+                    <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle2 className="w-9 h-9 text-green-600" />
+                    </div>
+                    <h3 className="font-black text-slate-900 text-lg mb-2">تم التغيير بنجاح!</h3>
+                    <p className="text-slate-500 text-sm mb-6">يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة.</p>
+                    <button onClick={() => { closeForgot(); setPassword(''); }}
+                      className="w-full py-3 rounded-xl text-white font-bold text-sm"
+                      style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+                      العودة لتسجيل الدخول
+                    </button>
+                  </div>
+                )}
+
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
