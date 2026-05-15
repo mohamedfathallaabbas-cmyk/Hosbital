@@ -1,14 +1,33 @@
+/**
+ * MEDICAL RECORDS ROUTE (Production-Grade)
+ *
+ * Fixes applied:
+ *  - IDOR: GET /patient/:patientId requires ownership or authorized role
+ *  - IDOR: GET /:id checks patient ownership before returning data
+ *  - PATCH /:id restricted to DOCTOR/ADMIN
+ *  - All errors propagated via next()
+ *  - Pagination on history endpoints
+ */
+
 import express from 'express';
 import { prisma } from '../index.js';
-import { authenticate, requireRole } from '../middleware/auth.js';
+import {
+  authenticate,
+  requirePermission,
+  enforcePatientOwnership,
+} from '../middleware/auth.js';
+import { PERMISSIONS } from '../config/permissions.js';
+import { NotFoundError, ForbiddenError, ValidationError } from '../utils/errors.js';
+import * as audit from '../services/auditService.js';
 
 const router = express.Router();
 
-// جميع المسارات محمية
+// All routes require authentication
 router.use(authenticate);
 
-const toInt = (value) => (value === undefined || value === null || value === '' ? null : parseInt(value));
+const toInt = (v) => (v === undefined || v === null || v === '' ? null : parseInt(v));
 
+// ── Helper: create prescription items inside a transaction ───────────────────
 async function createPrescriptionItems(tx, prescriptionId, items = []) {
   for (const item of items) {
     const requestedName = item.name || item.medicineName || '';
@@ -16,32 +35,29 @@ async function createPrescriptionItems(tx, prescriptionId, items = []) {
     const medicine = medicineId
       ? await tx.medicine.findUnique({ where: { id: medicineId } })
       : requestedName
-        ? await tx.medicine.findFirst({ where: { name: requestedName } })
-        : null;
+      ? await tx.medicine.findFirst({ where: { name: requestedName } })
+      : null;
 
     await tx.prescriptionItem.create({
       data: {
         prescriptionId,
-        medicineId: medicine?.id || null,
+        medicineId:   medicine?.id || null,
         medicineName: medicine ? null : requestedName,
-        dosage: item.dosage || item.dose || '-',
-        frequency: item.frequency || item.freq || '-',
-        duration: item.duration || '-',
-        quantity: toInt(item.quantity) || 1
-      }
+        dosage:       item.dosage || item.dose || '-',
+        frequency:    item.frequency || item.freq || '-',
+        duration:     item.duration || '-',
+        quantity:     toInt(item.quantity) || 1,
+      },
     });
   }
 }
 
-router.post('/prescriptions', requireRole('DOCTOR', 'ADMIN'), async (req, res) => {
+// ── POST /prescriptions ───────────────────────────────────────────────────────
+router.post('/prescriptions', requirePermission(PERMISSIONS.CREATE_MEDICAL_RECORD), async (req, res, next) => {
   const { patientId, appointmentId, complaint, diagnosis, treatmentPlan, notes, prescriptions = [] } = req.body;
 
-  if (!patientId && !appointmentId) {
-    return res.status(400).json({ error: 'اختيار المريض أو الموعد إجباري' });
-  }
-  if (!prescriptions.length) {
-    return res.status(400).json({ error: 'يجب إدخال دواء واحد على الأقل' });
-  }
+  if (!patientId && !appointmentId) return next(new ValidationError('اختيار المريض أو الموعد إجباري'));
+  if (!prescriptions.length)        return next(new ValidationError('يجب إدخال دواء واحد على الأقل'));
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -49,81 +65,88 @@ router.post('/prescriptions', requireRole('DOCTOR', 'ADMIN'), async (req, res) =
 
       if (!finalAppointmentId) {
         const doctor = await tx.doctor.findUnique({ where: { userId: req.user.id } });
-        if (!doctor) throw new Error('ملف الطبيب غير موجود');
+        if (!doctor) throw new NotFoundError('ملف الطبيب غير موجود');
 
         const appointment = await tx.appointment.create({
           data: {
             patientId: toInt(patientId),
-            doctorId: doctor.id,
-            date: new Date(),
-            timeSlot: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-            type: 'PRESCRIPTION',
-            status: 'COMPLETED'
-          }
+            doctorId:  doctor.id,
+            date:      new Date(),
+            timeSlot:  new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+            type:      'PRESCRIPTION',
+            status:    'COMPLETED',
+          },
         });
         finalAppointmentId = appointment.id;
       }
 
       const record = await tx.medicalRecord.upsert({
-        where: { appointmentId: finalAppointmentId },
+        where:  { appointmentId: finalAppointmentId },
         update: {
-          complaint: complaint || undefined,
-          diagnosis: diagnosis || undefined,
+          complaint:     complaint     || undefined,
+          diagnosis:     diagnosis     || undefined,
           treatmentPlan: treatmentPlan || undefined,
-          notes: notes || undefined
+          notes:         notes         || undefined,
         },
         create: {
           appointmentId: finalAppointmentId,
-          complaint: complaint || null,
-          diagnosis: diagnosis || null,
+          complaint:     complaint     || null,
+          diagnosis:     diagnosis     || null,
           treatmentPlan: treatmentPlan || null,
-          notes: notes || null
-        }
+          notes:         notes         || null,
+        },
       });
 
       await tx.appointment.update({
         where: { id: finalAppointmentId },
-        data: { status: 'COMPLETED' }
+        data:  { status: 'COMPLETED' },
       });
 
       const prescription = await tx.prescription.create({
-        data: { medicalRecordId: record.id, status: 'PENDING' }
+        data: { medicalRecordId: record.id, status: 'PENDING' },
       });
 
       await createPrescriptionItems(tx, prescription.id, prescriptions);
       return { record, prescription };
     });
 
+    await audit.log({
+      ...audit.fromRequest(req),
+      action:     'CREATE_PRESCRIPTION',
+      entityType: 'Prescription',
+      entityId:   result.prescription.id,
+      newData:    { patientId, appointmentId, medicineCount: prescriptions.length },
+    });
+
     res.status(201).json({ message: 'تم حفظ الروشتة وإرسالها للصيدلية', ...result });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message || 'حدث خطأ أثناء حفظ الروشتة' });
-  }
+  } catch (err) { next(err); }
 });
 
-router.get('/radiology', requireRole('ADMIN', 'DOCTOR', 'LAB_TECH', 'PATIENT'), async (req, res) => {
+// ── GET /radiology ─────────────────────────────────────────────────────────────
+router.get('/radiology', requirePermission(PERMISSIONS.VIEW_RADIOLOGY), async (req, res, next) => {
   const { patientId } = req.query;
+  const finalPatientId = req.user.role === 'PATIENT' ? req.user.patientId : patientId;
+
   try {
-    const finalPatientId = req.user.role === 'PATIENT' ? req.user.patientId : patientId;
     const records = await prisma.radiologyRecord.findMany({
-      where: finalPatientId ? { patientId: parseInt(finalPatientId) } : {},
+      where:   finalPatientId ? { patientId: parseInt(finalPatientId) } : {},
       include: {
         patient: { include: { user: { select: { name: true, phone: true } } } },
-        doctor: { include: { user: { select: { name: true } } } }
+        doctor:  { include: { user: { select: { name: true } } } },
       },
-      orderBy: { uploadedAt: 'desc' }
+      orderBy: { uploadedAt: 'desc' },
     });
     res.json(records);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في جلب ملفات الأشعة' });
-  }
+  } catch (err) { next(err); }
 });
 
-router.post('/radiology', requireRole('ADMIN', 'DOCTOR', 'LAB_TECH', 'PATIENT'), async (req, res) => {
+// ── POST /radiology ────────────────────────────────────────────────────────────
+router.post('/radiology', requirePermission(PERMISSIONS.VIEW_RADIOLOGY), async (req, res, next) => {
   const { patientId, doctorId, type, description, fileUrl } = req.body;
   const finalPatientId = req.user.role === 'PATIENT' ? req.user.patientId : patientId;
+
   if (!finalPatientId || !type || !fileUrl) {
-    return res.status(400).json({ error: 'المريض ونوع الأشعة ورابط الملف بيانات إجبارية' });
+    return next(new ValidationError('المريض ونوع الأشعة ورابط الملف بيانات إجبارية'));
   }
 
   try {
@@ -132,39 +155,38 @@ router.post('/radiology', requireRole('ADMIN', 'DOCTOR', 'LAB_TECH', 'PATIENT'),
       const doctor = await prisma.doctor.findUnique({ where: { userId: req.user.id } });
       finalDoctorId = doctor?.id || (await prisma.doctor.findFirst())?.id;
     }
-    if (!finalDoctorId) return res.status(400).json({ error: 'يجب تحديد الطبيب المسؤول' });
+    if (!finalDoctorId) return next(new ValidationError('يجب تحديد الطبيب المسؤول'));
 
     const record = await prisma.radiologyRecord.create({
       data: {
-        patientId: parseInt(finalPatientId),
-        doctorId: finalDoctorId,
+        patientId:   parseInt(finalPatientId),
+        doctorId:    finalDoctorId,
         type,
         description: description || null,
-        fileUrl
-      }
+        fileUrl,
+      },
     });
     res.status(201).json({ message: 'تم حفظ ملف الأشعة', record });
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في حفظ ملف الأشعة' });
-  }
+  } catch (err) { next(err); }
 });
 
-router.get('/blood-donations', requireRole('ADMIN', 'OPERATIONS_MANAGER', 'LAB_TECH', 'PATIENT'), async (req, res) => {
+// ── GET /blood-donations ───────────────────────────────────────────────────────
+router.get('/blood-donations', async (req, res, next) => {
+  const { role } = req.user;
   try {
-    const where = req.user.role === 'PATIENT'
+    const where = role === 'PATIENT'
       ? { nationalId: req.query.nationalId || '__none__' }
       : {};
     const donations = await prisma.bloodDonation.findMany({ where, orderBy: { donationDate: 'desc' } });
     res.json(donations);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في جلب تبرعات الدم' });
-  }
+  } catch (err) { next(err); }
 });
 
-router.post('/blood-donations', requireRole('ADMIN', 'OPERATIONS_MANAGER', 'LAB_TECH', 'PATIENT'), async (req, res) => {
+// ── POST /blood-donations ──────────────────────────────────────────────────────
+router.post('/blood-donations', async (req, res, next) => {
   const { donorName, nationalId, bloodType, quantity, status, notes } = req.body;
   if (!donorName || !nationalId || !bloodType || !quantity) {
-    return res.status(400).json({ error: 'اسم المتبرع والرقم القومي والفصيلة والكمية بيانات إجبارية' });
+    return next(new ValidationError('اسم المتبرع والرقم القومي والفصيلة والكمية بيانات إجبارية'));
   }
 
   try {
@@ -174,131 +196,149 @@ router.post('/blood-donations', requireRole('ADMIN', 'OPERATIONS_MANAGER', 'LAB_
         nationalId,
         bloodType,
         quantity: parseFloat(quantity),
-        status: status || 'TESTING',
-        notes: notes || null
-      }
+        status:   status || 'TESTING',
+        notes:    notes  || null,
+      },
     });
     res.status(201).json({ message: 'تم تسجيل تبرع الدم', donation });
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في تسجيل تبرع الدم' });
-  }
+  } catch (err) { next(err); }
 });
 
-// GET: عرض التاريخ الطبي لمريض معين
-router.get('/patient/:patientId', async (req, res) => {
-  const { patientId } = req.params;
-  
+// ── GET /patient/:patientId ────────────────────────────────────────────────────
+// IDOR FIX: Patients can only access their own history; staff need VIEW_MEDICAL_RECORDS.
+router.get('/patient/:patientId', async (req, res, next) => {
+  const requestedPatientId = parseInt(req.params.patientId);
+  const { role, patientId: ownPatientId } = req.user;
+
+  // Authorization check
+  if (role === 'PATIENT') {
+    if (requestedPatientId !== ownPatientId) {
+      return next(new ForbiddenError('غير مصرح لك بعرض السجلات الطبية لمريض آخر'));
+    }
+  } else {
+    // Staff must have the VIEW_MEDICAL_RECORDS permission
+    const { hasPermission } = await import('../config/permissions.js');
+    if (!hasPermission(role, PERMISSIONS.VIEW_MEDICAL_RECORDS)) {
+      return next(new ForbiddenError('ليس لديك صلاحية عرض السجلات الطبية'));
+    }
+  }
+
+  const { page = 1, limit = 10 } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
   try {
-    const records = await prisma.medicalRecord.findMany({
-      where: { appointment: { patientId: parseInt(patientId) } },
-      include: {
-        appointment: { include: { doctor: { include: { user: true, department: true } } } },
-        prescriptions: { include: { items: { include: { medicine: true } } } }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(records);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في جلب التاريخ الطبي' });
-  }
+    const [records, total] = await Promise.all([
+      prisma.medicalRecord.findMany({
+        where:   { appointment: { patientId: requestedPatientId } },
+        include: {
+          appointment: { include: { doctor: { include: { user: true, department: true } } } },
+          prescriptions: { include: { items: { include: { medicine: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit),
+      }),
+      prisma.medicalRecord.count({ where: { appointment: { patientId: requestedPatientId } } }),
+    ]);
+    res.json({ data: records, total, page: parseInt(page), limit: parseInt(limit) });
+  } catch (err) { next(err); }
 });
 
-// GET: جلب سجل طبي واحد
-router.get('/:id', async (req, res) => {
+// ── GET /:id ──────────────────────────────────────────────────────────────────
+router.get('/:id', async (req, res, next) => {
   try {
     const record = await prisma.medicalRecord.findUnique({
       where: { id: parseInt(req.params.id) },
       include: {
-        appointment: { include: { doctor: { include: { user: true } }, patient: { include: { user: true } } } },
-        prescriptions: { include: { items: { include: { medicine: true } } } }
-      }
+        appointment: {
+          include: {
+            doctor:  { include: { user: true } },
+            patient: { include: { user: true } },
+          },
+        },
+        prescriptions: { include: { items: { include: { medicine: true } } } },
+      },
     });
-    if (!record) return res.status(404).json({ error: 'السجل غير موجود' });
-    
-    // Authorization check for patients
+    if (!record) return next(new NotFoundError('السجل غير موجود'));
+
+    // IDOR: patients can only access their own records
     if (req.user.role === 'PATIENT' && record.appointment.patientId !== req.user.patientId) {
-      return res.status(403).json({ error: 'غير مصرح لك بعرض هذا السجل' });
+      return next(new ForbiddenError('غير مصرح لك بعرض هذا السجل'));
     }
-    
+
     res.json(record);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في جلب السجل الطبي' });
-  }
+  } catch (err) { next(err); }
 });
 
-// PATCH: تعديل السجل الطبي
-router.patch('/:id', async (req, res) => {
+// ── PATCH /:id ─────────────────────────────────────────────────────────────────
+router.patch('/:id', requirePermission(PERMISSIONS.EDIT_MEDICAL_RECORD), async (req, res, next) => {
   const { complaint, diagnosis, treatmentPlan, notes } = req.body;
   try {
     const updated = await prisma.medicalRecord.update({
       where: { id: parseInt(req.params.id) },
-      data: { complaint, diagnosis, treatmentPlan, notes }
+      data:  { complaint, diagnosis, treatmentPlan, notes },
     });
+
+    await audit.log({
+      ...audit.fromRequest(req),
+      action:     'EDIT_MEDICAL_RECORD',
+      entityType: 'MedicalRecord',
+      entityId:   parseInt(req.params.id),
+      newData:    { complaint, diagnosis, treatmentPlan, notes },
+    });
+
     res.json(updated);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في تعديل السجل الطبي' });
-  }
+  } catch (err) { next(err); }
 });
 
-// POST: إضافة كشف طبي جديد وروشتة
-router.post('/', async (req, res) => {
+// ── POST / ─────────────────────────────────────────────────────────────────────
+router.post('/', requirePermission(PERMISSIONS.CREATE_MEDICAL_RECORD), async (req, res, next) => {
   const { appointmentId, complaint, diagnosis, treatmentPlan, notes, prescriptions } = req.body;
-  
+  if (!appointmentId) return next(new ValidationError('معرف الموعد إجباري'));
+
   try {
-    // 1. إنشاء السجل الطبي (الكشف)
     const newRecord = await prisma.medicalRecord.create({
       data: {
         appointmentId: parseInt(appointmentId),
-        complaint: complaint || null,
-        diagnosis: diagnosis || null,
+        complaint:     complaint     || null,
+        diagnosis:     diagnosis     || null,
         treatmentPlan: treatmentPlan || null,
-        notes: notes || null
-      }
+        notes:         notes         || null,
+      },
     });
 
-    // 2. تحديث حالة الموعد إلى COMPLETED (مكتمل)
     await prisma.appointment.update({
       where: { id: parseInt(appointmentId) },
-      data: { status: 'COMPLETED' }
+      data:  { status: 'COMPLETED' },
     });
 
-    // 3. إنشاء الروشتة إذا قام الطبيب بكتابة أدوية
-    if (prescriptions && prescriptions.length > 0) {
+    if (prescriptions?.length) {
       const newPrescription = await prisma.prescription.create({
-        data: {
-          medicalRecordId: newRecord.id,
-          status: 'PENDING' // في انتظار صرفها من الصيدلية
-        }
+        data: { medicalRecordId: newRecord.id, status: 'PENDING' },
       });
 
-      // إضافة تفاصيل الأدوية للروشتة
       for (const item of prescriptions) {
-        // التأكد من وجود الدواء في قاعدة البيانات، وإلا يتم إنشاؤه لتبسيط التجربة
         let medicine = await prisma.medicine.findFirst({ where: { name: item.name } });
         if (!medicine) {
           medicine = await prisma.medicine.create({
-            data: { name: item.name, category: 'عام', price: 0 }
+            data: { name: item.name, category: 'عام', price: 0 },
           });
         }
-
         await prisma.prescriptionItem.create({
           data: {
             prescriptionId: newPrescription.id,
-            medicineId: medicine.id,
-            dosage: item.dosage,
-            frequency: item.frequency,
-            duration: item.duration,
-            quantity: 1
-          }
+            medicineId:     medicine.id,
+            dosage:         item.dosage,
+            frequency:      item.frequency,
+            duration:       item.duration,
+            quantity:       1,
+          },
         });
       }
     }
 
     res.status(201).json({ message: 'تم حفظ الكشف الطبي وإصدار الروشتة بنجاح', record: newRecord });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'حدث خطأ أثناء حفظ السجل الطبي' });
-  }
+  } catch (err) { next(err); }
 });
 
 export default router;

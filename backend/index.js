@@ -1,70 +1,169 @@
 import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import morgan from 'morgan';
+import dotenv  from 'dotenv';
+import morgan  from 'morgan';
+import path    from 'path';
+import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 
-import authRoutes from './routes/auth.js';
-import patientRoutes from './routes/patients.js';
-import appointmentRoutes from './routes/appointments.js';
+// ── Security & Utils ─────────────────────────────────────────────────────────
+import {
+  helmetMiddleware,
+  corsMiddleware,
+  generalRateLimiter,
+  authRateLimiter,
+  uploadRateLimiter,
+  compressionMiddleware,
+} from './middleware/security.js';
+import { errorHandler } from './middleware/errorHandler.js';
+
+// ── Routes ───────────────────────────────────────────────────────────────────
+import authRoutes         from './routes/auth.js';
+import patientRoutes      from './routes/patients.js';
+import appointmentRoutes  from './routes/appointments.js';
 import medicalRecordRoutes from './routes/medicalRecords.js';
-import financeRoutes from './routes/finance.js';
-import pharmacyRoutes from './routes/pharmacy.js';
-import adminRoutes from './routes/admin.js';
-import labsRoutes from './routes/labs.js';
-import admissionsRoutes from './routes/admissions.js';
-import nursingRoutes from './routes/nursing.js';
-import staffRoutes from './routes/staff.js';
-import insuranceRoutes from './routes/insurance.js';
-import reportsRoutes from './routes/reports.js';
+import financeRoutes      from './routes/finance.js';
+import pharmacyRoutes     from './routes/pharmacy.js';
+import adminRoutes        from './routes/admin.js';
+import labsRoutes         from './routes/labs.js';
+import admissionsRoutes   from './routes/admissions.js';
+import nursingRoutes      from './routes/nursing.js';
+import staffRoutes        from './routes/staff.js';
+import insuranceRoutes    from './routes/insurance.js';
+import reportsRoutes      from './routes/reports.js';
 import patientFilesRoutes from './routes/patientFiles.js';
+import notificationRoutes from './routes/notifications.js';
+import systemSettingsRoutes from './routes/systemSettings.js';
 
+// ── Bootstrap ────────────────────────────────────────────────────────────────
 dotenv.config();
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const app = express();
-export const prisma = new PrismaClient();
+const httpServer = http.createServer(app);
 
-app.use(cors());
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
-app.use(morgan('dev')); // Logging HTTP requests
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
 
-// المسارات
-app.use('/api/auth', authRoutes);
-app.use('/api/patients', patientRoutes);
-app.use('/api/appointments', appointmentRoutes);
-app.use('/api/medical-records', medicalRecordRoutes);
-app.use('/api/finance', financeRoutes);
-app.use('/api/pharmacy', pharmacyRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/labs', labsRoutes);
-app.use('/api/admissions', admissionsRoutes);
-app.use('/api/nursing', nursingRoutes);
-app.use('/api/staff', staffRoutes);
-app.use('/api/insurance', insuranceRoutes);
-app.use('/api/reports', reportsRoutes);
-app.use('/api/patient-files', patientFilesRoutes);
+// Expose io globally so notification service can use it
+global.io = io;
+
+io.on('connection', (socket) => {
+  console.log(`[Socket] User connected: ${socket.id}`);
+  
+  // A client will emit 'join' with their user ID
+  socket.on('join', (userId) => {
+    socket.join(`user_${userId}`);
+    console.log(`[Socket] User ${userId} joined their room`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`[Socket] User disconnected: ${socket.id}`);
+  });
+});
+
+export const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+});
+
+// ── Core Middleware ──────────────────────────────────────────────────────────
+app.use(helmetMiddleware);
+app.use(corsMiddleware);
+app.use(compressionMiddleware);
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// Body parsers — 10 MB limit (files go through multer, not JSON body)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ── Rate Limiting ─────────────────────────────────────────────────────────────
+app.use('/api/', generalRateLimiter);
+
+// ── Health Check ─────────────────────────────────────────────────────────────
+app.get('/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      status:    'ok',
+      timestamp: new Date().toISOString(),
+      uptime:    process.uptime(),
+      db:        'connected',
+      env:       process.env.NODE_ENV || 'development',
+    });
+  } catch {
+    res.status(503).json({ status: 'error', db: 'disconnected' });
+  }
+});
 
 app.get('/api', (req, res) => {
-  res.json({ message: 'مرحباً بك في سيرفر مستشفى الشفاء API 🏥', status: 'Active' });
+  res.json({ message: 'مرحباً بك في سيرفر مستشفى الشفاء API 🏥', status: 'Active', version: '2.0.0' });
 });
 
-// 404 Handler
-app.use((req, res, next) => {
-  res.status(404).json({ error: 'المسار غير موجود' });
+// ── API Routes ────────────────────────────────────────────────────────────────
+// Auth routes get stricter rate limiting
+app.use('/api/auth', authRateLimiter, authRoutes);
+
+// Patient file uploads get their own rate limiter
+app.use('/api/patient-files', uploadRateLimiter, patientFilesRoutes);
+
+// Standard routes
+app.use('/api/patients',        patientRoutes);
+app.use('/api/appointments',    appointmentRoutes);
+app.use('/api/medical-records', medicalRecordRoutes);
+app.use('/api/finance',         financeRoutes);
+app.use('/api/pharmacy',        pharmacyRoutes);
+app.use('/api/admin',           adminRoutes);
+app.use('/api/labs',            labsRoutes);
+app.use('/api/admissions',      admissionsRoutes);
+app.use('/api/nursing',         nursingRoutes);
+app.use('/api/staff',           staffRoutes);
+app.use('/api/insurance',       insuranceRoutes);
+app.use('/api/reports',         reportsRoutes);
+app.use('/api/notifications',   notificationRoutes);
+app.use('/api/system-settings', systemSettingsRoutes);
+
+// ── 404 Handler ───────────────────────────────────────────────────────────────
+app.use((req, res) => {
+  res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'المسار غير موجود' });
 });
 
-// Global Error Handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'حدث خطأ داخلي في الخادم', details: err.message });
-});
+// ── Global Error Handler (MUST be last) ──────────────────────────────────────
+app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+// ── Server Startup ────────────────────────────────────────────────────────────
+const PORT = parseInt(process.env.PORT || '5000', 10);
 
-app.listen(PORT, () => {
-  console.log(`========================================`);
+const server = httpServer.listen(PORT, () => {
+  console.log('========================================');
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌍 ENV: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 URL: http://localhost:${PORT}/api`);
-  console.log(`========================================`);
+  console.log(`❤️  Health: http://localhost:${PORT}/health`);
+  console.log('========================================');
 });
+
+// ── Graceful Shutdown ─────────────────────────────────────────────────────────
+async function shutdown(signal) {
+  console.log(`\n[${signal}] Graceful shutdown initiated…`);
+  server.close(async () => {
+    await prisma.$disconnect();
+    console.log('✓ Database disconnected. Bye!');
+    process.exit(0);
+  });
+  // Force shutdown after 10 s
+  setTimeout(() => process.exit(1), 10_000);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
+process.on('uncaughtException',  (err) => { console.error('[uncaughtException]', err); process.exit(1); });
+process.on('unhandledRejection', (err) => { console.error('[unhandledRejection]', err); });

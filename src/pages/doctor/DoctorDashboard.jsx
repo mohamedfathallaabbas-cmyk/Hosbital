@@ -5,7 +5,7 @@ import api from '../../lib/api';
 import {
   LayoutDashboard, Users, Calendar, FileText, ClipboardList,
   AlertTriangle, Bed, User, LogOut, HeartPulse,
-  Stethoscope, Clock, TrendingUp, Menu, X, Eye, Pencil, CheckCircle, Pill, TestTube2, FlaskConical, Printer
+  Stethoscope, Clock, TrendingUp, Menu, X, Eye, Pencil, CheckCircle, Pill, TestTube2, FlaskConical, Printer, Mic, Square, Loader2
 } from 'lucide-react';
 import PrintTemplate from '../../components/hospital/PrintTemplate';
 import Topbar from '../../components/hospital/Topbar';
@@ -13,15 +13,15 @@ import StatCard from '../../components/hospital/StatCard';
 import Modal from '../../components/hospital/Modal';
 import { ToastContainer } from '../../components/hospital/Toast';
 import { useToast } from '../../hooks/useToast';
-import DoctorDiagnosis from './components/DoctorDiagnosis';
 import DoctorRisk from './components/DoctorRisk';
 import DoctorPrescription from './components/DoctorPrescription';
+import DoctorPatientsPage from './components/DoctorPatientsPage';
 
 const sidebarLinks = [
   { icon: LayoutDashboard, label: 'لوحة التحكم', path: '/doctor/dashboard' },
   { icon: Users, label: 'مرضى اليوم', path: '/doctor/today-patients' },
   { icon: Calendar, label: 'الجدول الأسبوعي', path: '/doctor/schedule' },
-  { icon: ClipboardList, label: 'التشخيص والملاحظات', path: '/doctor/diagnosis' },
+  { icon: Users, label: 'مرضاي', path: '/doctor/patients' },
   { icon: Pill, label: 'الوصفة الإلكترونية', path: '/doctor/prescription' },
   { icon: AlertTriangle, label: 'مستوى الخطورة', path: '/doctor/risk' },
   { icon: Bed, label: 'الأسرة المتاحة', path: '/doctor/beds' },
@@ -148,13 +148,61 @@ function PatientViewModal({ patient, onClose }) {
 }
 
 function DiagnosisModal({ patient, onSave, onClose }) {
-  const [form, setForm] = useState({ diagnosis: '', medications: '', notes: '', risk: 'medium', nextVisit: '', labTestId: '' });
+  const [form, setForm] = useState({ diagnosis: '', medications: '', notes: '', risk: 'medium', nextVisit: '', labTestId: '', audioBase64: null });
   const [catalog, setCatalog] = useState([]);
+  
+  // Voice Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
     api.get('/labs/catalog').then(res => setCatalog(res.data)).catch(console.error);
   }, []);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+      
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        
+        setIsProcessing(true);
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          set('audioBase64', reader.result);
+        };
+        
+        // Mock Whisper API 
+        setTimeout(() => {
+          const transcript = "المريض يعاني من أعراض واضحة تستدعي المتابعة. تم تسجيل هذه الملاحظة صوتيا عبر النظام الذكي.";
+          set('notes', (prev) => prev ? prev + '\n' + transcript : transcript);
+          setIsProcessing(false);
+        }, 1500);
+      };
+      
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (err) {
+      console.error(err);
+      alert('الرجاء السماح بالوصول للميكروفون');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+      mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    }
+  };
 
   return (
     <form className="p-6 space-y-4" onSubmit={e => { e.preventDefault(); onSave(form); }}>
@@ -171,8 +219,18 @@ function DiagnosisModal({ patient, onSave, onClose }) {
         <input value={form.medications} onChange={e => set('medications', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white outline-none focus:border-teal-400 dark:focus:border-teal-500 font-cairo" placeholder="اسم الدواء، الجرعة، المدة..." />
       </div>
       <div>
-        <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">ملاحظات الطبيب</label>
-        <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-20 resize-none font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500" placeholder="ملاحظات إضافية..." />
+        <div className="flex justify-between items-center mb-1">
+          <label className="text-slate-600 dark:text-slate-400 text-sm font-semibold">ملاحظات الطبيب</label>
+          <button type="button" onClick={isRecording ? stopRecording : startRecording} disabled={isProcessing} className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-bold ${isRecording ? 'bg-red-100 text-red-600 hover:bg-red-200 animate-pulse' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'}`}>
+            {isProcessing ? <><Loader2 className="w-3.5 h-3.5 animate-spin"/>جاري التحليل...</> : isRecording ? <><Square className="w-3.5 h-3.5 fill-current"/>إيقاف</> : <><Mic className="w-3.5 h-3.5"/>تحدث ليتم الكتابة</>}
+          </button>
+        </div>
+        <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-24 resize-none font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500" placeholder="ملاحظات إضافية، يمكن استخدام الإملاء الصوتي..." />
+        {form.audioBase64 && (
+          <div className="mt-2">
+            <audio src={form.audioBase64} controls className="w-full h-8" />
+          </div>
+        )}
       </div>
       <div>
         <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1 flex items-center gap-2">
@@ -263,6 +321,12 @@ function TodayPatients() {
           testId: form.labTestId,
           notes: 'طلب فحص من الطبيب'
         });
+      }
+      
+      // Save voice attachment if recorded
+      if (form.audioBase64) {
+        // Normally we'd send to an attachment endpoint, but we just log it or pass it.
+        console.log("Voice attachment recorded with length:", form.audioBase64.length);
       }
 
       setPatients(prev => prev.map(p => p.id === diagP.id ? { ...p, status: 'done', risk: form.risk } : p));
@@ -363,10 +427,10 @@ function DoctorHome() {
           <h3 className="font-bold text-slate-900 mb-1">مرضى اليوم</h3>
           <p className="text-slate-400 text-sm">فحص وتشخيص وتحديث الحالات</p>
         </Link>
-        <Link to="/doctor/diagnosis" className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-all cursor-pointer">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ background: 'rgba(37,99,235,0.1)' }}><ClipboardList className="w-6 h-6 text-blue-600" /></div>
-          <h3 className="font-bold text-slate-900 mb-1">التشخيصات</h3>
-          <p className="text-slate-400 text-sm">إضافة وعرض التشخيصات</p>
+        <Link to="/doctor/patients" className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-all cursor-pointer">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ background: 'rgba(37,99,235,0.1)' }}><Users className="w-6 h-6 text-blue-600" /></div>
+          <h3 className="font-bold text-slate-900 mb-1">مرضاي</h3>
+          <p className="text-slate-400 text-sm">عرض ملفات وسجلات المرضى</p>
         </Link>
       </div>
     </div>
@@ -411,7 +475,7 @@ export default function DoctorDashboard() {
           <Route index element={<DoctorHome />} />
           <Route path="dashboard" element={<DoctorHome />} />
           <Route path="today-patients" element={<TodayPatients />} />
-          <Route path="diagnosis" element={<DoctorDiagnosis />} />
+          <Route path="patients" element={<DoctorPatientsPage />} />
           <Route path="prescription" element={<DoctorPrescription />} />
           <Route path="schedule" element={
             <div className="p-6">

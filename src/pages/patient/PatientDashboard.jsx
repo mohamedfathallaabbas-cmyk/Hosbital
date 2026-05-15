@@ -47,15 +47,15 @@ function DashboardHome() {
   useEffect(() => {
     if (user.patientId) {
       api.get(`/appointments?patientId=${user.patientId}`)
-        .then(res => setAppointments(res.data))
+        .then(res => setAppointments(res.data?.data || res.data || []))
         .catch(console.error);
         
       api.get(`/medical-records/patient/${user.patientId}`)
-        .then(res => setMedHistory(res.data))
+        .then(res => setMedHistory(res.data?.data || res.data || []))
         .catch(console.error);
 
       api.get(`/labs/orders?patientId=${user.patientId}`)
-        .then(res => setLabs(res.data))
+        .then(res => setLabs(res.data?.data || res.data || []))
         .catch(console.error);
     }
   }, [user.patientId]);
@@ -186,7 +186,7 @@ function AppointmentsPage() {
   }, []);
 
   const fetchAppts = () => {
-    api.get('/appointments').then(r => setAllAppts(r.data)).catch(console.error);
+    api.get('/appointments').then(r => setAllAppts(r.data?.data || r.data || [])).catch(console.error);
   };
 
   // عند اختيار القسم — جلب الأطباء التابعين له
@@ -369,7 +369,7 @@ function BloodDonation() {
     const patientRes = await api.get('/patients/' + user.patientId);
     setProfile(patientRes.data);
     const donationRes = await api.get('/medical-records/blood-donations', { params: { nationalId: patientRes.data.nationalId } });
-    setDonations(donationRes.data);
+    setDonations(donationRes.data?.data || donationRes.data || []);
   };
 
   useEffect(() => { load().catch(console.error); }, [user.patientId]);
@@ -467,7 +467,7 @@ function UploadsPage() {
   const [files, setFiles] = useState([]);
   const [preview, setPreview] = useState(null);
   const { toasts, addToast, removeToast } = useToast();
-  const load = () => { if (!user.patientId) return; api.get('/medical-records/radiology', { params: { patientId: user.patientId } }).then(res => setFiles(res.data)).catch(console.error); };
+  const load = () => { if (!user.patientId) return; api.get('/medical-records/radiology', { params: { patientId: user.patientId } }).then(res => setFiles(res.data?.data || res.data || [])).catch(console.error); };
   useEffect(() => { load(); }, [user.patientId]);
   const toDataUrl = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
   const handleFileChange = async (e) => {

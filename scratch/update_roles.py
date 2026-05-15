@@ -1,167 +1,16 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
-import {
-  HeartPulse, User, Stethoscope, Building2,
-  Settings, TrendingUp, Mail, Lock, Eye, EyeOff,
-  ArrowRight, ChevronLeft, FlaskConical,
-  KeyRound, AlertTriangle, CheckCircle2, ShieldCheck
-} from 'lucide-react';
+import sys
 
-const roles = [
-  { id: 'patient', label: 'مريض', sublabel: 'Patient', icon: User, color: '#2563eb', bg: 'rgba(37,99,235,0.1)', gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)', desc: 'عرض المواعيد والسجل الطبي', path: '/patient/dashboard' },
-  { id: 'doctor', label: 'طبيب', sublabel: 'Doctor', icon: Stethoscope, color: '#14b8a6', bg: 'rgba(20,184,166,0.1)', gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)', desc: 'إدارة المرضى والجداول', path: '/doctor/dashboard' },
-  { id: 'nurse', label: 'ممرض', sublabel: 'Nurse', icon: HeartPulse, color: '#f43f5e', bg: 'rgba(244,63,94,0.1)', gradient: 'linear-gradient(135deg, #f43f5e, #e11d48)', desc: 'متابعة المرضى المنومين', path: '/nursing/dashboard' },
-  { id: 'reception', label: 'استقبال', sublabel: 'Reception', icon: Building2, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', desc: 'الحجوزات والمرضى الجدد', path: '/reception/dashboard' },
-  { id: 'pharmacist', label: 'صيدلي', sublabel: 'Pharmacy', icon: Stethoscope, color: '#10b981', bg: 'rgba(16,185,129,0.1)', gradient: 'linear-gradient(135deg, #10b981, #059669)', desc: 'صرف الأدوية والجرد', path: '/pharmacy/dashboard' },
-  { id: 'lab_tech', label: 'فني مختبر', sublabel: 'Lab & Radiology', icon: FlaskConical, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', desc: 'إدارة التحاليل والأشعة والنتائج', path: '/lab/dashboard' },
-  { id: 'admin', label: 'مدير النظام', sublabel: 'Admin', icon: Settings, color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', desc: 'إدارة تشغيلية للنظام', path: '/admin/dashboard' },
-  { id: 'manager', label: 'مدير المستشفى', sublabel: 'Manager', icon: TrendingUp, color: '#ef4444', bg: 'rgba(239,68,68,0.1)', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', desc: 'التقارير والإحصائيات الشاملة', path: '/admin/dashboard' },
-  { id: 'financial_manager', label: 'مدير مالي', sublabel: 'Finance', icon: TrendingUp, color: '#eab308', bg: 'rgba(234,179,8,0.1)', gradient: 'linear-gradient(135deg, #eab308, #ca8a04)', desc: 'الماليات والرواتب والفواتير', path: '/admin/dashboard' },
-  { id: 'staff', label: 'موظف', sublabel: 'Staff', icon: User, color: '#475569', bg: 'rgba(71,85,105,0.1)', gradient: 'linear-gradient(135deg, #475569, #0f172a)', desc: 'بيانات الموظف والمرتب والحضور والإجازات', path: '/staff/dashboard' },
+path = 'src/pages/RoleSelect.jsx'
+with open(path, 'r', encoding='utf-8') as f:
+    content = f.read()
 
-];
+idx = content.find('  return (')
+if idx == -1:
+    sys.exit(1)
 
-const credentials = {
-  patient: { email: 'patient1@alshifa.com', pass: '123456' },
-  doctor: { email: 'magdy@alshifa.com', pass: '123456' },
-  nurse: { email: 'nurse1@alshifa.com', pass: '123456' },
-  reception: { email: 'reception1@alshifa.com', pass: '123456' },
-  pharmacist: { email: 'pharmacist@alshifa.com', pass: '123456' },
-  lab_tech: { email: 'lab@alshifa.com', pass: '123456' },
-  admin: { email: 'admin@alshifa.com', pass: '123456' },
-  manager: { email: 'manager@alshifa.com', pass: '123456' },
-  financial_manager: { email: 'finance@alshifa.com', pass: '123456' },
-  staff: { email: 'staff@alshifa.com', pass: '123456' },
+top = content[:idx]
 
-};
-
-const userNames = {
-  patient: 'أحمد محمد السيد',
-  doctor: 'د. سارة العمري',
-  reception: 'نورا الخالدي',
-  admin: 'عمر الإدريسي',
-  manager: 'خالد المنصور',
-};
-
-import { useAuth } from '@/lib/AuthContext';
-
-export default function RoleSelect() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const [step, setStep] = useState('role');
-  const [selectedRole, setSelectedRole] = useState(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  // ── Forgot Password State ────────────────────────────────────────────────
-  const [forgotStep, setForgotStep] = useState(''); // '' | 'email' | 'reset' | 'done'
-  const [fpEmail, setFpEmail]       = useState('');
-  const [fpNationalId, setFpNationalId] = useState('');
-  const [fpNewPass, setFpNewPass]   = useState('');
-  const [fpConfirm, setFpConfirm]   = useState('');
-  const [fpHasNid, setFpHasNid]     = useState(false);
-  const [fpLoading, setFpLoading]   = useState(false);
-  const [fpError, setFpError]       = useState('');
-  const [fpShowPass, setFpShowPass] = useState(false);
-
-  const openForgot = () => {
-    setFpEmail(email); setFpNationalId(''); setFpNewPass('');
-    setFpConfirm(''); setFpError(''); setForgotStep('email');
-  };
-  const closeForgot = () => setForgotStep('');
-
-  const handleFpStep1 = async () => {
-    setFpError(''); setFpLoading(true);
-    try {
-      const res = await axios.post('http://localhost:5000/api/auth/forgot-password', { email: fpEmail });
-      setFpHasNid(res.data.hasNationalId);
-      setForgotStep('reset');
-    } catch (err) {
-      setFpError(err.response?.data?.error || 'حدث خطأ');
-    } finally { setFpLoading(false); }
-  };
-
-  const handleFpReset = async () => {
-    setFpError('');
-    if (fpNewPass.length < 6) return setFpError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
-    if (fpNewPass !== fpConfirm) return setFpError('كلمتا المرور غير متطابقتين');
-    setFpLoading(true);
-    try {
-      await axios.post('http://localhost:5000/api/auth/reset-password', {
-        email: fpEmail,
-        nationalId: fpNationalId || undefined,
-        newPassword: fpNewPass,
-      });
-      setForgotStep('done');
-    } catch (err) {
-      setFpError(err.response?.data?.error || 'حدث خطأ');
-    } finally { setFpLoading(false); }
-  };
-
-  const handleRoleSelect = (role) => {
-    setSelectedRole(role);
-    const cred = credentials[role.id];
-    setEmail(cred.email);
-    setPassword(cred.pass);
-    setError('');
-    setStep('form');
-  };
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    
-    try {
-      // الاتصال بالباك إند الحقيقي
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
-        email,
-        password
-      });
-
-      const { token, user } = response.data;
-      const normalizedRole = user.role.toLowerCase();
-
-      // تحديد مسار التوجيه بناءً على الدور
-      const rolePaths = {
-        patient: '/patient/dashboard',
-        doctor: '/doctor/dashboard',
-        nurse: '/nursing/dashboard',
-        reception: '/reception/dashboard',
-        admin: '/admin/dashboard',
-        manager: '/admin/dashboard',
-        financial_manager: '/admin/dashboard',
-
-        pharmacist: '/pharmacy/dashboard',
-        lab_tech: '/lab/dashboard',
-        staff: '/staff/dashboard'
-      };
-
-      login({
-        id: user.id,
-        role: normalizedRole,
-        name: user.name,
-        email: user.email,
-        token: token,
-        patientId: user.patientId,
-        doctorId: user.doctorId
-      });
-
-      navigate(rolePaths[normalizedRole]);
-      
-    } catch (err) {
-      setError(err.response?.data?.error || 'تعذر الاتصال بخادم المستشفى');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
+new_return = """  return (
     <div className="min-h-screen relative font-cairo flex items-center justify-center overflow-hidden bg-slate-900" dir="rtl">
       <div className="absolute inset-0 z-0">
         <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1920&fit=crop" alt="Hospital Background" className="w-full h-full object-cover opacity-30" />
@@ -370,3 +219,7 @@ export default function RoleSelect() {
     </div>
   );
 }
+"""
+
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(top + new_return)

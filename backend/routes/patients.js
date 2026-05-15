@@ -1,137 +1,172 @@
+/**
+ * PATIENTS ROUTE (Production-Grade)
+ *
+ * Fixes applied:
+ *  - IDOR: enforcePatientOwnership on all patient-scoped endpoints
+ *  - requirePermission for staff access
+ *  - Pagination on list endpoint
+ *  - Passwords never returned in responses
+ *  - Proper error propagation
+ */
+
 import express from 'express';
-import bcrypt from 'bcryptjs';
+import bcrypt  from 'bcryptjs';
 import { prisma } from '../index.js';
-import { authenticate, enforcePatientOwnership, requireRole } from '../middleware/auth.js';
+import {
+  authenticate,
+  requirePermission,
+  enforcePatientOwnership,
+} from '../middleware/auth.js';
+import { PERMISSIONS } from '../config/permissions.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
 
 const router = express.Router();
 
-// GET: البحث عن جميع المرضى أو مريض محدد
-router.get('/', authenticate, requireRole('ADMIN', 'DOCTOR', 'NURSE', 'RECEPTION', 'MANAGER'), async (req, res) => {
-  const { search } = req.query;
-  try {
-    const patients = await prisma.patient.findMany({
-      where: search ? {
-        OR: [
-          { nationalId: { contains: search } },
-          { user: { name: { contains: search } } },
-          { user: { phone: { contains: search } } }
-        ]
-      } : {},
-      include: {
-        user: { select: { name: true, email: true, phone: true } }
-      }
-    });
-    res.json(patients);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في جلب بيانات المرضى' });
-  }
-});
+// ── GET / — Staff only ────────────────────────────────────────────────────────
+router.get(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.VIEW_ALL_PATIENTS),
+  async (req, res, next) => {
+    const { search, page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-// GET: جلب مريض واحد بتفاصيله الكاملة
-router.get('/:id', authenticate, enforcePatientOwnership, async (req, res) => {
+    try {
+      let where = search
+        ? {
+            OR: [
+              { nationalId:  { contains: search } },
+              { user: { name:  { contains: search, mode: 'insensitive' } } },
+              { user: { phone: { contains: search } } },
+            ],
+          }
+        : {};
+
+      if (req.user.role === 'DOCTOR') {
+        where = {
+          ...where,
+          appointments: { some: { doctorId: req.user.doctorId } }
+        };
+      }
+
+      const [patients, total] = await Promise.all([
+        prisma.patient.findMany({
+          where,
+          include: { user: { select: { name: true, email: true, phone: true } } },
+          skip,
+          take: parseInt(limit),
+          orderBy: { id: 'desc' },
+        }),
+        prisma.patient.count({ where }),
+      ]);
+
+      res.json({ data: patients, total, page: parseInt(page), limit: parseInt(limit) });
+    } catch (err) { next(err); }
+  }
+);
+
+// ── GET /:id — IDOR protected ─────────────────────────────────────────────────
+router.get('/:id', authenticate, enforcePatientOwnership, async (req, res, next) => {
   try {
     const patient = await prisma.patient.findUnique({
-      where: { id: parseInt(req.params.id) },
-      include: { user: true }
+      where:   { id: parseInt(req.params.id) },
+      include: { user: { select: { id: true, name: true, email: true, phone: true, role: true, createdAt: true } } },
     });
-    if (!patient) return res.status(404).json({ error: 'المريض غير موجود' });
+    if (!patient) return next(new NotFoundError('المريض غير موجود'));
     res.json(patient);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في جلب المريض' });
-  }
+  } catch (err) { next(err); }
 });
 
-// GET: ملخص المريض (مواعيد، سجلات، فواتير)
-router.get('/:id/summary', authenticate, enforcePatientOwnership, async (req, res) => {
+// ── GET /:id/summary — IDOR protected ────────────────────────────────────────
+router.get('/:id/summary', authenticate, enforcePatientOwnership, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const patient = await prisma.patient.findUnique({
       where: { id },
       include: {
-        user: true,
-        appointments: { include: { doctor: { include: { user: true, department: true } } }, orderBy: { date: 'desc' }, take: 5 },
-        invoices: { orderBy: { createdAt: 'desc' }, take: 5 },
-        admissions: { include: { bed: { include: { room: { include: { ward: true } } } } }, orderBy: { admittedAt: 'desc' }, take: 5 }
-      }
+        user:        { select: { id: true, name: true, email: true, phone: true } },
+        appointments: {
+          include:  { doctor: { include: { user: { select: { name: true } }, department: true } } },
+          orderBy:  { date: 'desc' },
+          take:     5,
+        },
+        invoices:   { orderBy: { createdAt: 'desc' }, take: 5 },
+        admissions: {
+          include:  { bed: { include: { room: { include: { ward: true } } } } },
+          orderBy:  { admittedAt: 'desc' },
+          take:     5,
+        },
+      },
     });
-    
-    if (!patient) return res.status(404).json({ error: 'المريض غير موجود' });
-    
-    // جلب آخر السجلات الطبية
+    if (!patient) return next(new NotFoundError('المريض غير موجود'));
+
     const medicalRecords = await prisma.medicalRecord.findMany({
-      where: { appointment: { patientId: id } },
-      include: { appointment: { include: { doctor: { include: { user: true } } } }, prescriptions: { include: { items: { include: { medicine: true } } } } },
+      where:   { appointment: { patientId: id } },
+      include: {
+        appointment:   { include: { doctor: { include: { user: { select: { name: true } } } } } },
+        prescriptions: { include: { items: { include: { medicine: true } } } },
+      },
       orderBy: { createdAt: 'desc' },
-      take: 5
+      take:    5,
     });
 
     res.json({ ...patient, medicalRecords });
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في جلب ملخص المريض' });
-  }
+  } catch (err) { next(err); }
 });
 
-// PATCH: تعديل بيانات المريض
-router.patch('/:id', authenticate, enforcePatientOwnership, async (req, res) => {
+// ── PATCH /:id — IDOR protected ───────────────────────────────────────────────
+router.patch('/:id', authenticate, enforcePatientOwnership, async (req, res, next) => {
   const { weight, height, bloodType, allergies, chronicDiseases, emergencyContact, phone } = req.body;
+
   try {
     const id = parseInt(req.params.id);
     const patient = await prisma.patient.update({
       where: { id },
-      data: {
-        weight: weight ? parseFloat(weight) : undefined,
-        height: height ? parseFloat(height) : undefined,
-        bloodType,
-        allergies,
-        chronicDiseases,
-        emergencyContact,
-        ...(phone && { user: { update: { phone } } })
+      data:  {
+        weight:           weight ? parseFloat(weight) : undefined,
+        height:           height ? parseFloat(height) : undefined,
+        bloodType:        bloodType        || undefined,
+        allergies:        allergies        || undefined,
+        chronicDiseases:  chronicDiseases  || undefined,
+        emergencyContact: emergencyContact || undefined,
+        ...(phone && { user: { update: { phone } } }),
       },
-      include: { user: true }
+      include: { user: { select: { name: true, email: true, phone: true } } },
     });
     res.json(patient);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في تحديث بيانات المريض' });
-  }
+  } catch (err) { next(err); }
 });
 
-// POST: تسجيل مريض جديد من قبل الاستقبال
-router.post('/', async (req, res) => {
+// ── POST / — Reception registers a walk-in patient ────────────────────────────
+router.post('/', authenticate, requirePermission(PERMISSIONS.MANAGE_PATIENT), async (req, res, next) => {
   const { name, email, phone, nationalId, dateOfBirth, gender, bloodType } = req.body;
-  
+  if (!name) return next(new ValidationError('الاسم إجباري'));
+
   try {
-    const defaultPassword = await bcrypt.hash(nationalId || '123456', 10);
-    const generatedEmail = email || `patient_${nationalId || Date.now()}@alshifa.local`;
-    
+    const defaultPassword  = await bcrypt.hash(nationalId || '123456', 10);
+    const generatedEmail   = email || `patient_${nationalId || Date.now()}@alshifa.local`;
+
     const newUser = await prisma.user.create({
       data: {
         name,
-        email: generatedEmail,
+        email:    generatedEmail,
         phone,
         password: defaultPassword,
-        role: 'PATIENT',
+        role:     'PATIENT',
         patientProfile: {
           create: {
             nationalId,
             dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
             gender,
-            bloodType
-          }
-        }
+            bloodType,
+          },
+        },
       },
-      include: {
-        patientProfile: true
-      }
+      include: { patientProfile: true },
     });
 
     res.status(201).json({ message: 'تم تسجيل المريض بنجاح', patient: newUser.patientProfile });
-  } catch (error) {
-    console.error(error);
-    if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'البريد الإلكتروني أو الرقم القومي مسجل مسبقاً في النظام' });
-    }
-    res.status(500).json({ error: 'حدث خطأ أثناء تسجيل المريض' });
-  }
+  } catch (err) { next(err); }
 });
 
 export default router;

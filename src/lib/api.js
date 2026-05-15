@@ -24,7 +24,13 @@ api.interceptors.request.use((config) => {
 
 // معالجة أخطاء انتهاء الصلاحية
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Unroll paginated arrays so frontend array methods (.map, .filter, .length) do not crash
+    if (response.data && Array.isArray(response.data.data) && response.data.total !== undefined) {
+      response.data = response.data.data;
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       sessionStorage.removeItem('hospitalUser');

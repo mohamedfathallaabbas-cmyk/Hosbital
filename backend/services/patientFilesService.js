@@ -2,16 +2,32 @@ import fs from 'fs/promises';
 import path from 'path';
 import { prisma } from '../index.js';
 
-export const saveFileRecord = async ({ patientId, file, category, description, createdById }) => {
+import crypto from 'crypto';
+
+export const calculateFileHash = async (filePath) => {
+  const fileBuffer = await fs.readFile(filePath);
+  const hashSum = crypto.createHash('sha256');
+  hashSum.update(fileBuffer);
+  return hashSum.digest('hex');
+};
+
+export const checkDuplicateFile = async (patientId, fileHash) => {
+  return await prisma.patientFile.findFirst({
+    where: { patientId: parseInt(patientId), fileHash }
+  });
+};
+
+export const saveFileRecord = async ({ patientId, file, fileHash, category, description, createdById }) => {
   const ext = path.extname(file.originalname).replace('.', '').toLowerCase();
   
   return await prisma.patientFile.create({
     data: {
       patientId: parseInt(patientId),
-      fileName: file.originalname, // We store original name for display, but file on disk is UUID
+      fileName: file.originalname,
       fileType: ext,
-      fileUrl: `/uploads/${file.filename}`, // Real path in uploads folder
+      fileUrl: `/uploads/${file.filename}`,
       fileSize: file.size,
+      fileHash,
       category: category || 'OTHER',
       description: description || null,
       createdById: parseInt(createdById)

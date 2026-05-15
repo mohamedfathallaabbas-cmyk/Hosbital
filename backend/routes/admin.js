@@ -165,6 +165,29 @@ router.patch('/users/:id', requireRole('ADMIN'), async (req, res) => {
   }
 });
 
+router.patch('/users/:id/reset-password', requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' });
+  }
+  try {
+    const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+    if (user.role === 'PATIENT') {
+      return res.status(403).json({ error: 'لا يمكن لمدير النظام تغيير كلمة مرور المريض لأسباب أمنية' });
+    }
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: parseInt(id) },
+      data: { password: hashed }
+    });
+    res.json({ message: 'تم إعادة تعيين كلمة المرور بنجاح' });
+  } catch (err) {
+    res.status(500).json({ error: 'خطأ في إعادة تعيين كلمة المرور' });
+  }
+});
+
 router.delete('/users/:id', requireRole('ADMIN'), async (req, res) => {
   const { id } = req.params;
   try {

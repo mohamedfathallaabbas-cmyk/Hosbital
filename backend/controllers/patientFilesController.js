@@ -4,38 +4,56 @@ import {
   saveFileRecord, 
   getFilesByPatientId, 
   getFileById, 
-  deleteFileRecordAndDisk 
+  deleteFileRecordAndDisk,
+  calculateFileHash,
+  checkDuplicateFile
 } from '../services/patientFilesService.js';
+import * as audit from '../services/auditService.js';
+import { ValidationError, ConflictError, NotFoundError, ForbiddenError } from '../utils/errors.js';
 
-export const uploadPatientFile = async (req, res) => {
+export const uploadPatientFile = async (req, res, next) => {
   const { category, description } = req.body;
   const patientId = req.user.patientId;
 
-  if (!req.file) return res.status(400).json({ error: 'لم يتم رفع أي ملف' });
+  if (!req.file) return next(new ValidationError('لم يتم رفع أي ملف'));
   if (!patientId) {
-    // حذف الملف المرفوع إذا لم يتم التعرف على المريض
     fs.unlinkSync(req.file.path);
-    return res.status(403).json({ error: 'المريض غير معروف' });
+    return next(new ForbiddenError('المريض غير معروف'));
   }
 
   try {
+    const fileHash = await calculateFileHash(req.file.path);
+    
+    // Check for duplicates
+    const duplicate = await checkDuplicateFile(patientId, fileHash);
+    if (duplicate) {
+      fs.unlinkSync(req.file.path);
+      return next(new ConflictError('هذا الملف تم رفعه مسبقاً لهذا المريض'));
+    }
+
     const saved = await saveFileRecord({
       patientId,
       file: req.file,
+      fileHash,
       category,
       description,
       createdById: req.user.id
     });
     
-    console.log(`[AUDIT LOG] User ${req.user.id} (Role: ${req.user.role}) uploaded file ${saved.id} for patient ${patientId}`);
+    await audit.log({
+      ...audit.fromRequest(req),
+      action: 'UPLOAD_PATIENT_FILE',
+      entityType: 'PatientFile',
+      entityId: saved.id,
+      newData: { patientId, fileName: saved.fileName, fileHash }
+    });
     
     res.status(201).json({ message: 'تم رفع الملف بنجاح', file: saved });
   } catch (err) {
-    console.error(err);
     if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path); // تنظيف الملف إذا فشل الحفظ في قاعدة البيانات
+      fs.unlinkSync(req.file.path);
     }
-    res.status(500).json({ error: 'خطأ في حفظ الملف' });
+    next(err);
   }
 };
 
