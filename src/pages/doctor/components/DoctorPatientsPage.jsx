@@ -19,9 +19,14 @@ export default function DoctorPatientsPage() {
     try {
       // The backend enforces doctor ownership
       const res = await api.get(`/patients?page=${page}&limit=10&search=${search}`);
-      setPatients(res.data.data);
-      setTotalPages(Math.ceil(res.data.total / res.data.limit));
-      setTotal(res.data.total);
+      // API interceptor unrolls the array to res.data and attaches pagination props
+      const fetchedPatients = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      const totalItems = res.data.total || 0;
+      const limitItems = res.data.limit || 10;
+      
+      setPatients(fetchedPatients);
+      setTotalPages(Math.ceil(totalItems / limitItems) || 1);
+      setTotal(totalItems);
     } catch (err) {
       console.error(err);
     } finally {
@@ -112,7 +117,7 @@ export default function DoctorPatientsPage() {
                     <td className="p-4 text-slate-600 font-medium">
                       <span className="px-2 py-1 bg-red-50 text-red-600 rounded-md text-xs">{p.bloodType || 'غير محدد'}</span>
                     </td>
-                    <td className="p-4 text-slate-500">{new Date(p.createdAt).toLocaleDateString('ar-EG')}</td>
+                    <td className="p-4 text-slate-500">{new Date(p.user?.createdAt || new Date()).toLocaleDateString('ar-EG')}</td>
                     <td className="p-4 text-center">
                       <button 
                         onClick={() => handleView(p)}

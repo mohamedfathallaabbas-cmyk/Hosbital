@@ -25,9 +25,9 @@ export default function DoctorPrescription() {
       api.get('/pharmacy/inventory'),
       api.get('/pharmacy/prescriptions')
     ]).then(([patientRes, medicineRes, rxRes]) => {
-      setPatients(patientRes.data);
-      setMedicines(medicineRes.data);
-      setHistory(rxRes.data);
+      setPatients(patientRes.data?.data || patientRes.data || []);
+      setMedicines(medicineRes.data?.data || medicineRes.data || []);
+      setHistory(rxRes.data?.data || rxRes.data || []);
     }).catch(console.error);
   }, []);
 

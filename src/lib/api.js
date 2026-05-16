@@ -26,8 +26,13 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => {
     // Unroll paginated arrays so frontend array methods (.map, .filter, .length) do not crash
+    // but preserve pagination metadata attached to the array object.
     if (response.data && Array.isArray(response.data.data) && response.data.total !== undefined) {
-      response.data = response.data.data;
+      const originalData = response.data;
+      response.data = originalData.data;
+      response.data.total = originalData.total;
+      response.data.page = originalData.page;
+      response.data.limit = originalData.limit;
     }
     return response;
   },

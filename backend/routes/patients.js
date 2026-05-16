@@ -52,7 +52,7 @@ router.get(
       const [patients, total] = await Promise.all([
         prisma.patient.findMany({
           where,
-          include: { user: { select: { name: true, email: true, phone: true } } },
+          include: { user: { select: { name: true, email: true, phone: true, createdAt: true } } },
           skip,
           take: parseInt(limit),
           orderBy: { id: 'desc' },

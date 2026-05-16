@@ -43,10 +43,19 @@ router.post('/orders', authenticate, async (req, res) => {
   const doctorId = req.user.doctorId;
 
   try {
+    let finalDoctorId = doctorId ? parseInt(doctorId) : null;
+    if (!finalDoctorId) {
+      const doctor = await prisma.doctor.findUnique({ where: { userId: req.user.id } });
+      finalDoctorId = doctor?.id;
+    }
+    if (!finalDoctorId) {
+      return res.status(400).json({ error: 'لم يتم العثور على ملف الطبيب' });
+    }
+
     const newOrder = await prisma.labOrder.create({
       data: {
         patientId: parseInt(patientId),
-        doctorId: parseInt(doctorId),
+        doctorId: finalDoctorId,
         testId: parseInt(testId),
         status: 'PENDING'
       },

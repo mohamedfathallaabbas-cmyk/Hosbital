@@ -266,10 +266,11 @@ export default function MedicalHistory() {
         api.get(`/labs/orders?patientId=${user.patientId}`)
       ])
         .then(([recRes, labRes]) => {
-          setRecords(recRes.data);
-          setLabs(labRes.data);
-          if (recRes.data[0]?.appointment?.patient) {
-            const p = recRes.data[0].appointment.patient;
+          const recordsArray = recRes.data?.data || recRes.data || [];
+          setRecords(recordsArray);
+          setLabs(labRes.data?.data || labRes.data || []);
+          if (recordsArray[0]?.appointment?.patient) {
+            const p = recordsArray[0].appointment.patient;
             setPatientData({ 
               weight: p.weight || 75, 
               height: p.height || 175, 
@@ -341,7 +342,7 @@ export default function MedicalHistory() {
 
   const filtered = VISITS.filter(v =>
     (tab === 'all' || v.type === tab) &&
-    (search === '' || v.diagnosis.includes(search) || v.doctor.includes(search))
+    (search === '' || (v.diagnosis || '').includes(search) || (v.doctor || '').includes(search))
   );
 
   const EmptyState = ({ msg }) => (
