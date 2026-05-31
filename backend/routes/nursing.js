@@ -122,23 +122,45 @@ router.get('/dashboard-stats', requireRole('NURSE'), async (req, res) => {
 });
 
 // POST /notes - إضافة ملاحظة تمريضية
-router.post('/notes', requireRole('NURSE'), async (req, res) => {
+router.post('/notes', async (req, res) => {
   const { admissionId, content, vitalSigns } = req.body;
+
+  if (!admissionId) {
+    return res.status(400).json({ error: 'معرّف التنويم مطلوب' });
+  }
+  if (!content && !vitalSigns) {
+    return res.status(400).json({ error: 'يجب إدخال محتوى الملاحظة أو القياسات الحيوية' });
+  }
+
   try {
+    // البحث عن ملف الموظف (الممرض)
     const staffProfile = await prisma.staff.findUnique({ where: { userId: req.user.id } });
-    if (!staffProfile) return res.status(404).json({ error: 'ملف الممرض غير موجود' });
+
+    // التحقق من وجود التنويم أولاً
+    const admission = await prisma.admission.findUnique({ where: { id: parseInt(admissionId) } });
+    if (!admission) {
+      return res.status(404).json({ error: 'سجل التنويم غير موجود' });
+    }
+
+    if (!staffProfile) {
+      // لا يوجد ملف موظف — نرجع خطأ واضح
+      return res.status(404).json({ 
+        error: 'لم يتم العثور على ملف الممرض في النظام. تواصل مع مدير النظام لإضافة ملفك الوظيفي.' 
+      });
+    }
 
     const note = await prisma.nurseNote.create({
       data: {
         admissionId: parseInt(admissionId),
         nurseId: staffProfile.id,
-        content,
+        content: content || 'متابعة تمريضية',
         vitalSigns: vitalSigns || null
       }
     });
     res.status(201).json({ message: 'تم حفظ الملاحظة', note });
   } catch (error) {
-    res.status(500).json({ error: 'خطأ في حفظ الملاحظة' });
+    console.error('❌ Error saving nurse note:', error);
+    res.status(500).json({ error: 'خطأ في حفظ الملاحظة: ' + (error.message || 'خطأ غير معروف') });
   }
 });
 

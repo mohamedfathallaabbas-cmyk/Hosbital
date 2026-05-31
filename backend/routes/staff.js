@@ -131,10 +131,13 @@ router.post('/me/leaves', async (req, res) => {
   }
 });
 
-// GET /leaves - جلب جميع الإجازات (للمدير)
-router.get('/leaves', requireRole('ADMIN', 'MANAGER'), async (req, res) => {
+// GET /leaves - جلب جميع الإجازات (للمدير والادمن)
+router.get('/leaves', requireRole('ADMIN', 'MANAGER', 'OPERATIONS_MANAGER'), async (req, res) => {
   try {
+    const { status } = req.query;
+    const where = status ? { status } : {};
     const leaves = await prisma.leaveRequest.findMany({
+      where,
       include: {
         employee: { include: { user: { select: { name: true, email: true, phone: true } } } },
         reviewer: { select: { name: true } }
@@ -147,24 +150,35 @@ router.get('/leaves', requireRole('ADMIN', 'MANAGER'), async (req, res) => {
   }
 });
 
-// PATCH /leaves/:id/status - قبول/رفض الإجازة (للمدير)
-router.patch('/leaves/:id/status', requireRole('ADMIN', 'MANAGER'), async (req, res) => {
-  const { status } = req.body; // APPROVED or REJECTED
+// PATCH /leaves/:id/status - قبول/رفض الإجازة
+router.patch('/leaves/:id/status', requireRole('ADMIN', 'MANAGER', 'OPERATIONS_MANAGER'), async (req, res) => {
+  const { status, rejectionReason } = req.body;
   if (!['APPROVED', 'REJECTED'].includes(status)) {
     return res.status(400).json({ error: 'حالة غير صحيحة' });
   }
-
   try {
+    // جلب الطلب أولاً للتحقق
+    const existing = await prisma.leaveRequest.findUnique({ where: { id: parseInt(req.params.id) } });
+    if (!existing) return res.status(404).json({ error: 'طلب الإجازة غير موجود' });
+
+    const updateData = {
+      status,
+      reviewedBy: req.user.id,
+      reviewedAt: new Date(),
+    };
+
+    // إذا كان الرفض، نضيف السبب في حقل reason
+    if (status === 'REJECTED' && rejectionReason) {
+      updateData.reason = `${existing.reason || ''} [سبب الرفض: ${rejectionReason}]`.trim();
+    }
+
     const leave = await prisma.leaveRequest.update({
       where: { id: parseInt(req.params.id) },
-      data: {
-        status,
-        reviewedBy: req.user.id,
-        reviewedAt: new Date()
-      }
+      data: updateData
     });
     res.json({ message: `تم ${status === 'APPROVED' ? 'قبول' : 'رفض'} الإجازة بنجاح`, leave });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'خطأ في تحديث حالة الإجازة' });
   }
 });

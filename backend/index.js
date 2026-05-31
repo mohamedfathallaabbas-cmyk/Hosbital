@@ -142,12 +142,21 @@ app.use(errorHandler);
 // ── Server Startup ────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
-const server = httpServer.listen(PORT, () => {
+// const server = httpServer.listen(PORT, () => {
+//   console.log('========================================');
+//   console.log(`🚀 Server running on port ${PORT}`);
+//   console.log(`🌍 ENV: ${process.env.NODE_ENV || 'development'}`);
+//   console.log(`🔗 URL: http://localhost:${PORT}/api`);
+//   console.log(`❤️  Health: http://localhost:${PORT}/health`);
+//   console.log('========================================');
+// });
+
+const server = httpServer.listen(PORT, "0.0.0.0", () => {
   console.log('========================================');
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌍 ENV: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 URL: http://localhost:${PORT}/api`);
-  console.log(`❤️  Health: http://localhost:${PORT}/health`);
+  console.log(`🔗 API: /api`);
+  console.log(`❤️  Health: /health`);
   console.log('========================================');
 });
 
