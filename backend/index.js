@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import cors from 'cors'; // حطها فوق خالص مع باقي الـ imports لو مش موجودة
 
 // ── Security & Utils ─────────────────────────────────────────────────────────
 import {
@@ -74,7 +75,12 @@ export const prisma = new PrismaClient({
 
 // ── Core Middleware ──────────────────────────────────────────────────────────
 app.use(helmetMiddleware);
-app.use(corsMiddleware);
+// app.use(corsMiddleware);
+
+app.use(cors({
+    origin: true,
+    credentials: true
+}));
 app.use(compressionMiddleware);
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
