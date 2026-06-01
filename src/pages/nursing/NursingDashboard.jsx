@@ -1,0 +1,370 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Activity, AlertCircle, Bed, Bell, CheckCircle, Clock,
+  HeartPulse, LogOut, Pill, Plus, ShieldAlert, Stethoscope,
+  UserRound, PlayCircle, RefreshCw, X, ChevronRight,
+  Thermometer, Droplets, Wind, Scale
+} from 'lucide-react';
+import Topbar from '../../components/hospital/Topbar';
+import Modal from '../../components/hospital/Modal';
+import { ToastContainer } from '../../components/hospital/Toast';
+import { useToast } from '../../hooks/useToast';
+import api from '../../lib/api';
+import { useAuth } from '@/lib/AuthContext';
+
+export default function NursingDashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toasts, addToast, removeToast } = useToast();
+
+  const [admissions, setAdmissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [modalOpen, setModalOpen] = useState('');
+  const [noteForm, setNoteForm] = useState({ vitals: '', content: '' });
+  const [saving, setSaving] = useState(false);
+
+  const fetchAdmissions = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/admissions/active');
+      const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setAdmissions(list);
+    } catch (err) {
+      console.error('Failed to fetch admissions:', err);
+      addToast('تعذر تحميل بيانات المرضى المنومين', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdmissions();
+  }, []);
+
+  const handleSaveNote = async (e) => {
+    e.preventDefault();
+    if (!selectedPatient) return;
+    setSaving(true);
+    try {
+      await api.post('/nursing/notes', {
+        admissionId: selectedPatient.id,
+        vitalSigns: noteForm.vitals || null,
+        content: noteForm.content || 'متابعة تمريضية'
+      });
+      addToast('تم حفظ الملاحظة التمريضية بنجاح ✓', 'success');
+      setModalOpen('');
+      setNoteForm({ vitals: '', content: '' });
+      setSelectedPatient(null);
+    } catch (err) {
+      console.error('❌ Nursing note error:', err.response?.data || err.message);
+      const errMsg = err.response?.data?.error || err.response?.data?.message || 'فشل حفظ الملاحظة';
+      addToast(errMsg, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const logout = () => {
+    sessionStorage.removeItem('hospitalUser');
+    navigate('/role-select');
+  };
+
+  // Derived stats
+  const totalPatients = admissions.length;
+  const criticalCount = admissions.filter(a => a.condition === 'CRITICAL').length;
+
+  // Time of day greeting
+  const hour = new Date().getHours();
+  const shift = hour < 12 ? 'شيفت صباحي' : hour < 20 ? 'شيفت مسائي' : 'شيفت ليلي';
+  const greeting = hour < 12 ? 'صباح الخير' : hour < 18 ? 'مساء الخير' : 'مساء النور';
+
+  return (
+    <div className="flex h-screen bg-slate-50 font-cairo" dir="rtl">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <Topbar title="لوحة التمريض" roleColor="#f43f5e" />
+
+        <div className="flex-1 overflow-auto p-6 space-y-6">
+
+          {/* Header */}
+          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 mb-1">{greeting}، {user?.name}</h2>
+              <p className="text-slate-500 text-sm flex items-center gap-2">
+                <PlayCircle className="w-4 h-4 text-green-500" />
+                {shift} — متابعة المرضى المنومين وتسجيل القياسات الحيوية
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchAdmissions}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 transition-all text-sm font-bold shadow-sm"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                تحديث
+              </button>
+              <button
+                onClick={logout}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 text-red-600 font-bold text-sm hover:bg-red-100 transition-colors shadow-sm"
+              >
+                <LogOut className="w-4 h-4" />
+                خروج
+              </button>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: 'مرضى منومون', value: totalPatients, icon: Bed, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+              { label: 'حالات حرجة', value: criticalCount, icon: HeartPulse, color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100' },
+              { label: 'جرعات متبقية', value: totalPatients * 2, icon: Pill, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+              { label: 'ملاحظات اليوم', value: 0, icon: Activity, color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-100' },
+            ].map((s, i) => (
+              <div key={i} className={`bg-white rounded-2xl p-5 shadow-sm border ${s.border} flex items-center gap-4`}>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${s.bg} ${s.color}`}>
+                  <s.icon className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="text-2xl font-black text-slate-800">{loading ? '—' : s.value}</div>
+                  <div className="text-slate-500 text-xs font-semibold">{s.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Alert Banner - Critical */}
+          {!loading && criticalCount > 0 && (
+            <div className="p-4 rounded-2xl bg-red-50 border border-red-200 flex items-center gap-3">
+              <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
+              <div>
+                <p className="font-bold text-red-700">تنبيه: {criticalCount} حالة حرجة تحتاج متابعة فورية</p>
+                <p className="text-xs text-red-600 mt-0.5">يرجى مراجعة الحالات الحرجة في الجدول أدناه</p>
+              </div>
+            </div>
+          )}
+
+          {/* Patients Table */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="font-black text-slate-800 flex items-center gap-2">
+                <UserRound className="w-5 h-5 text-rose-500" />
+                المرضى المنومون حالياً ({totalPatients})
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-right">
+                <thead className="bg-slate-50 text-slate-500 text-xs font-bold">
+                  <tr>
+                    <th className="p-4">المريض</th>
+                    <th className="p-4">الغرفة / السرير</th>
+                    <th className="p-4">الطبيب المعالج</th>
+                    <th className="p-4">تاريخ الدخول</th>
+                    <th className="p-4">الحالة</th>
+                    <th className="p-4 text-center">إجراء</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loading ? (
+                    <tr><td colSpan="6" className="p-10 text-center text-slate-400 animate-pulse">جاري تحميل بيانات المرضى...</td></tr>
+                  ) : admissions.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="p-12 text-center">
+                        <Bed className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                        <p className="text-slate-400 font-medium">لا يوجد مرضى منومون حالياً</p>
+                        <p className="text-slate-300 text-xs mt-1">ستظهر هنا قائمة المرضى عند تنويمهم من قبل الاستقبال</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    admissions.map((adm) => {
+                      const patientName = adm.patient?.user?.name || adm.patientName || 'غير معروف';
+                      const doctorName = adm.doctor?.user?.name || adm.doctorName || 'غير محدد';
+                      const bedNumber = adm.bed?.bedNumber || adm.bedNumber || '—';
+                      const roomName = adm.bed?.room?.name || adm.roomName || '—';
+                      const isCritical = adm.condition === 'CRITICAL';
+                      const admitDate = adm.admittedAt || adm.createdAt;
+
+                      return (
+                        <tr key={adm.id} className={`hover:bg-slate-50 transition-colors ${isCritical ? 'bg-red-50/30' : ''}`}>
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm ${isCritical ? 'bg-red-500' : 'bg-gradient-to-br from-rose-400 to-rose-600'}`}>
+                                {patientName.charAt(0)}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-800">{patientName}</div>
+                                {isCritical && <div className="text-xs text-red-500 font-bold flex items-center gap-1"><AlertCircle className="w-3 h-3" />حرج</div>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className="font-semibold text-slate-700">{roomName}</span>
+                            <span className="text-xs text-slate-400 block">سرير {bedNumber}</span>
+                          </td>
+                          <td className="p-4 text-slate-600 text-sm">د. {doctorName}</td>
+                          <td className="p-4 text-slate-400 text-xs">
+                            {admitDate ? new Date(admitDate).toLocaleDateString('ar-EG') : '—'}
+                          </td>
+                          <td className="p-4">
+                            <span className={`px-2 py-1 rounded-lg text-xs font-bold ${isCritical ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                              {isCritical ? 'حرج' : 'مستقر'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => {
+                                setSelectedPatient({ ...adm, _name: patientName, _doctor: doctorName, _bed: `${roomName} / سرير ${bedNumber}` });
+                                setNoteForm({ vitals: '', content: '' });
+                                setModalOpen('note');
+                              }}
+                              className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold hover:bg-rose-100 transition-colors flex items-center gap-1 mx-auto"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              تسجيل متابعة
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Quick Info Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Nursing Instructions */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+              <h3 className="font-black text-slate-800 mb-4 text-sm flex items-center gap-2">
+                <Bell className="w-4 h-4 text-amber-500" />
+                إرشادات الشيفت
+              </h3>
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 flex gap-3 items-start">
+                  <Clock className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-blue-700">قياسات حيوية كل 4 ساعات</p>
+                    <p className="text-xs text-blue-600 mt-0.5">ضغط الدم، الحرارة، معدل ضربات القلب</p>
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 flex gap-3 items-start">
+                  <Pill className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-amber-700">متابعة جرعات الدواء</p>
+                    <p className="text-xs text-amber-600 mt-0.5">تأكد من صرف الأدوية حسب جدول الروشتات</p>
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-teal-50 border border-teal-100 flex gap-3 items-start">
+                  <Stethoscope className="w-4 h-4 text-teal-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-teal-700">تقرير تسليم الشيفت</p>
+                    <p className="text-xs text-teal-600 mt-0.5">سجّل ملاحظاتك على كل مريض قبل انتهاء الشيفت</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Vitals Quick Reference */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+              <h3 className="font-black text-slate-800 mb-4 text-sm flex items-center gap-2">
+                <Activity className="w-4 h-4 text-rose-500" />
+                مرجع القياسات الطبيعية
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { icon: Droplets, label: 'ضغط الدم', normal: '120/80 mmHg', color: 'text-red-500 bg-red-50' },
+                  { icon: HeartPulse, label: 'النبض', normal: '60-100 نبضة/دقيقة', color: 'text-rose-500 bg-rose-50' },
+                  { icon: Thermometer, label: 'الحرارة', normal: '36.1–37.2 °C', color: 'text-orange-500 bg-orange-50' },
+                  { icon: Wind, label: 'التنفس', normal: '12-20 نفس/دقيقة', color: 'text-blue-500 bg-blue-50' },
+                ].map((v, i) => (
+                  <div key={i} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${v.color} mb-2`}>
+                      <v.icon className="w-3.5 h-3.5" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-700">{v.label}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{v.normal}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Nursing Note Modal */}
+      <Modal
+        open={modalOpen === 'note'}
+        onClose={() => { setModalOpen(''); setSelectedPatient(null); }}
+        title={`تسجيل متابعة تمريضية — ${selectedPatient?._name}`}
+        size="md"
+      >
+        <form onSubmit={handleSaveNote} className="p-6 space-y-5">
+          {/* Patient Info Summary */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-slate-400">المريض</p>
+              <p className="font-bold text-slate-800 text-sm">{selectedPatient?._name}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">الغرفة / السرير</p>
+              <p className="font-bold text-slate-800 text-sm">{selectedPatient?._bed}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">الطبيب المعالج</p>
+              <p className="font-bold text-slate-800 text-sm">د. {selectedPatient?._doctor}</p>
+            </div>
+          </div>
+
+          {/* Vitals */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-rose-500" />
+              القياسات الحيوية
+            </label>
+            <input
+              value={noteForm.vitals}
+              onChange={e => setNoteForm(p => ({ ...p, vitals: e.target.value }))}
+              className="w-full px-4 py-3 rounded-xl border bg-slate-50 border-slate-200 outline-none focus:border-rose-400 transition-colors text-sm font-cairo"
+              placeholder="مثال: ضغط 120/80، حرارة 37.2°، نبض 80، تشبع أكسجين 98%"
+            />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+              <Stethoscope className="w-4 h-4 text-rose-500" />
+              ملاحظات التمريض
+            </label>
+            <textarea
+              value={noteForm.content}
+              onChange={e => setNoteForm(p => ({ ...p, content: e.target.value }))}
+              className="w-full px-4 py-3 rounded-xl border bg-slate-50 border-slate-200 outline-none focus:border-rose-400 transition-colors h-28 resize-none text-sm font-cairo"
+              placeholder="اكتب ما تم ملاحظته على المريض، الإجراءات التي تمت، أي تغيير في الحالة..."
+            />
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setModalOpen('')}
+              className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+            >
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 py-3 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors flex items-center justify-center gap-2"
+            >
+              {saving ? 'جاري الحفظ...' : <><CheckCircle className="w-5 h-5" /> حفظ الملاحظة</>}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+    </div>
+  );
+}

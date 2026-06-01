@@ -1,0 +1,546 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int            @id @default(autoincrement())
+  email            String         @unique
+  password         String
+  name             String
+  role             String         @default("PATIENT")
+  phone            String?
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  avatarUrl        String?
+  articles         Article[]
+  attendance       Attendance[]
+  doctorProfile    Doctor?
+  reviewedLeaves   LeaveRequest[] @relation("LeaveReviewer")
+  patientProfile   Patient?
+  uploadedFiles    PatientFile[]  @relation("FileCreator")
+  approvedPayrolls Payroll[]      @relation("PayrollApprover")
+  staffProfile     Staff?
+  auditLogs        AuditLog[]
+  purchaseRequests PurchaseRequest[] @relation("PharmacistRequests")
+  approvedRequests PurchaseRequest[] @relation("AdminApprovals")
+  notifications    Notification[]
+}
+
+
+model Department {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  headId      Int?
+  doctors     Doctor[]
+  wards       Ward[]
+}
+
+model Staff {
+  id                 Int                 @id @default(autoincrement())
+  userId             Int                 @unique
+  category           String              @default("MEDICAL")
+  jobTitle           String
+  shift              String?
+  salary             Float?
+  allowances         Float?
+  hireDate           DateTime            @default(now())
+  nationalId         String?             @unique
+  address            String?
+  department         String?
+  notes              String?
+  leaveRequests      LeaveRequest[]
+  nurseNotes         NurseNote[]
+  nursingAssignments NursingAssignment[]
+  payrolls           Payroll[]
+  salaryAdjustments  SalaryAdjustment[]
+  user               User                @relation(fields: [userId], references: [id])
+}
+
+model Doctor {
+  id               Int               @id @default(autoincrement())
+  userId           Int               @unique
+  departmentId     Int
+  specialty        String
+  consultFee       Float
+  clinicNumber     String?
+  admissions       Admission[]
+  appointments     Appointment[]
+  department       Department        @relation(fields: [departmentId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
+  labOrders        LabOrder[]
+  radiologyRecords RadiologyRecord[]
+}
+
+model Patient {
+  id               Int               @id @default(autoincrement())
+  userId           Int               @unique
+  nationalId       String?           @unique
+  dateOfBirth      DateTime?
+  gender           String?
+  bloodType        String?
+  weight           Float?
+  height           Float?
+  emergencyContact String?
+  allergies        String?
+  chronicDiseases  String?
+  admissions       Admission[]
+  appointments     Appointment[]
+  policies         InsurancePolicy[]
+  invoices         Invoice[]
+  user             User              @relation(fields: [userId], references: [id])
+  files            PatientFile[]
+  radiologyRecords RadiologyRecord[]
+}
+
+model Appointment {
+  id              Int            @id @default(autoincrement())
+  patientId       Int
+  doctorId        Int
+  admissionId     Int?
+  date            DateTime
+  timeSlot        String?
+  status          String         @default("SCHEDULED")
+  type            String         @default("CHECKUP")
+  queueNumber     Int?
+  rejectionReason String?
+  admission       Admission?     @relation(fields: [admissionId], references: [id])
+  doctor          Doctor         @relation(fields: [doctorId], references: [id])
+  patient         Patient        @relation(fields: [patientId], references: [id])
+  medicalRecord   MedicalRecord?
+  triage          Triage?
+
+  @@index([status])
+  @@index([patientId])
+  @@index([doctorId])
+  // DB-level guard: same doctor cannot have two active slots at the same date+time
+  @@unique([doctorId, date, timeSlot])
+}
+
+model Triage {
+  id            Int         @id @default(autoincrement())
+  appointmentId Int         @unique
+  bloodPressure String?
+  heartRate     Int?
+  temperature   Float?
+  oxygenLevel   Int?
+  priorityLevel String      @default("NORMAL")
+  notes         String?
+  recordedAt    DateTime    @default(now())
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+}
+
+model MedicalRecord {
+  id            Int            @id @default(autoincrement())
+  appointmentId Int            @unique
+  complaint     String?
+  diagnosis     String?
+  treatmentPlan String?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  appointment   Appointment    @relation(fields: [appointmentId], references: [id])
+  prescriptions Prescription[]
+
+  @@index([createdAt])
+}
+
+model Ward {
+  id           Int        @id @default(autoincrement())
+  departmentId Int
+  name         String
+  type         String
+  capacity     Int
+  rooms        Room[]
+  department   Department @relation(fields: [departmentId], references: [id])
+}
+
+model Room {
+  id          Int    @id @default(autoincrement())
+  wardId      Int
+  roomNumber  String
+  type        String
+  pricePerDay Float
+  beds        Bed[]
+  ward        Ward   @relation(fields: [wardId], references: [id])
+}
+
+model Bed {
+  id                 Int                 @id @default(autoincrement())
+  roomId             Int
+  bedNumber          String
+  isOccupied         Boolean             @default(false)
+  admissions         Admission[]
+  room               Room                @relation(fields: [roomId], references: [id])
+  nursingAssignments NursingAssignment[]
+}
+
+model Admission {
+  id                   Int           @id @default(autoincrement())
+  patientId            Int
+  doctorId             Int
+  bedId                Int
+  reason               String
+  status               String        @default("ADMITTED")
+  admittedAt           DateTime      @default(now())
+  dischargedAt         DateTime?
+  bed                  Bed           @relation(fields: [bedId], references: [id])
+  doctor               Doctor        @relation(fields: [doctorId], references: [id])
+  patient              Patient       @relation(fields: [patientId], references: [id])
+  followUpAppointments Appointment[]
+  nurseNotes           NurseNote[]
+
+  @@index([patientId])
+}
+
+model NurseNote {
+  id          Int       @id @default(autoincrement())
+  admissionId Int
+  nurseId     Int
+  content     String
+  vitalSigns  String?
+  createdAt   DateTime  @default(now())
+  admission   Admission @relation(fields: [admissionId], references: [id])
+  nurse       Staff     @relation(fields: [nurseId], references: [id])
+}
+
+model NursingAssignment {
+  id         Int      @id @default(autoincrement())
+  nurseId    Int
+  bedId      Int
+  shift      String
+  assignedAt DateTime @default(now())
+  isActive   Boolean  @default(true)
+  bed        Bed      @relation(fields: [bedId], references: [id])
+  nurse      Staff    @relation(fields: [nurseId], references: [id])
+}
+
+model Medicine {
+  id                Int                @id @default(autoincrement())
+  name              String             @unique
+  genericName       String?
+  category          String
+  stock             Int                @default(0)
+  price             Float
+  expiryDate        DateTime?
+  prescriptionItems PrescriptionItem[]
+  purchaseRequests  PurchaseRequest[]
+}
+
+model PurchaseRequest {
+  id              Int       @id @default(autoincrement())
+  medicineId      Int?
+  medicineName    String
+  quantity        Int
+  notes           String?
+  status          String    @default("PENDING")
+  rejectionReason String?
+  pharmacistId    Int
+  adminId         Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  medicine        Medicine? @relation(fields: [medicineId], references: [id])
+  pharmacist      User      @relation("PharmacistRequests", fields: [pharmacistId], references: [id])
+  admin           User?     @relation("AdminApprovals", fields: [adminId], references: [id])
+}
+
+model Prescription {
+  id              Int                @id @default(autoincrement())
+  medicalRecordId Int
+  status          String             @default("PENDING")
+  createdAt       DateTime           @default(now())
+  medicalRecord   MedicalRecord      @relation(fields: [medicalRecordId], references: [id])
+  items           PrescriptionItem[]
+
+  @@index([status])
+}
+
+model PrescriptionItem {
+  id             Int          @id @default(autoincrement())
+  prescriptionId Int
+  medicineId     Int?
+  dosage         String
+  frequency      String
+  duration       String
+  quantity       Int
+  medicineName   String?
+  medicine       Medicine?    @relation(fields: [medicineId], references: [id])
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+}
+
+model LabTestCatalog {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  type      String
+  cost      Float
+  labOrders LabOrder[]
+}
+
+model LabOrder {
+  id          Int            @id @default(autoincrement())
+  patientId   Int?
+  doctorId    Int
+  testId      Int
+  status      String         @default("PENDING")
+  result      String?
+  resultValue String?
+  isNormal    Boolean?
+  orderedAt   DateTime       @default(now())
+  completedAt DateTime?
+  doctor      Doctor         @relation(fields: [doctorId], references: [id])
+  test        LabTestCatalog @relation(fields: [testId], references: [id])
+
+  @@index([status])
+}
+
+model InsuranceCompany {
+  id       Int               @id @default(autoincrement())
+  name     String            @unique
+  email    String?
+  phone    String?
+  claims   Claim[]
+  policies InsurancePolicy[]
+}
+
+model InsurancePolicy {
+  id           Int              @id @default(autoincrement())
+  patientId    Int
+  companyId    Int
+  policyNumber String           @unique
+  coveragePct  Float
+  expiryDate   DateTime
+  company      InsuranceCompany @relation(fields: [companyId], references: [id])
+  patient      Patient          @relation(fields: [patientId], references: [id])
+}
+
+model Invoice {
+  id          Int           @id @default(autoincrement())
+  patientId   Int
+  subtotal    Float         @default(0.0)
+  tax         Float         @default(0.0)
+  discount    Float         @default(0.0)
+  totalAmount Float
+  status      String        @default("UNPAID")
+  createdAt   DateTime      @default(now())
+  dueDate     DateTime?
+  claims      Claim[]
+  patient     Patient       @relation(fields: [patientId], references: [id])
+  items       InvoiceItem[]
+  payments    Payment[]
+
+  @@index([status])
+  @@index([patientId])
+  @@index([createdAt])
+}
+
+model InvoiceItem {
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int
+  description String
+  amount      Float
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+}
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  invoiceId     Int
+  amountPaid    Float
+  method        String
+  transactionId String?
+  paidAt        DateTime @default(now())
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
+}
+
+model Claim {
+  id            Int              @id @default(autoincrement())
+  invoiceId     Int
+  companyId     Int
+  claimedAmount Float
+  status        String           @default("SUBMITTED")
+  remarks       String?
+  submittedAt   DateTime         @default(now())
+  company       InsuranceCompany @relation(fields: [companyId], references: [id])
+  invoice       Invoice          @relation(fields: [invoiceId], references: [id])
+}
+
+model RadiologyRecord {
+  id          Int      @id @default(autoincrement())
+  patientId   Int
+  doctorId    Int
+  type        String
+  description String?
+  fileUrl     String
+  uploadedAt  DateTime @default(now())
+  doctor      Doctor   @relation(fields: [doctorId], references: [id])
+  patient     Patient  @relation(fields: [patientId], references: [id])
+}
+
+model PatientFile {
+  id          Int          @id @default(autoincrement())
+  patientId   Int
+  fileName    String
+  fileType    String
+  fileUrl     String
+  fileHash    String?
+  description String?
+  uploadedAt  DateTime     @default(now())
+  createdById Int?
+  fileSize    Int?
+  category    FileCategory @default(OTHER)
+  createdBy   User?        @relation("FileCreator", fields: [createdById], references: [id])
+  patient     Patient      @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@index([fileHash])
+}
+
+model BloodDonation {
+  id           Int      @id @default(autoincrement())
+  donorName    String
+  nationalId   String
+  bloodType    String
+  quantity     Float
+  donationDate DateTime @default(now())
+  status       String   @default("TESTING")
+  notes        String?
+}
+
+model Attendance {
+  id       Int       @id @default(autoincrement())
+  userId   Int
+  date     DateTime  @default(now())
+  checkIn  DateTime?
+  checkOut DateTime?
+  status   String    @default("PRESENT")
+  notes    String?
+  user     User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+}
+
+model Article {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  authorId  Int
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model Payroll {
+  id            Int           @id @default(autoincrement())
+  employeeId    Int
+  month         Int
+  year          Int
+  baseSalary    Float         @default(0.0)
+  allowances    Float         @default(0.0)
+  deductions    Float         @default(0.0)
+  overtime      Float         @default(0.0)
+  bonus         Float         @default(0.0)
+  netSalary     Float         @default(0.0)
+  paymentStatus String        @default("PENDING")
+  paidAt        DateTime?
+  approvedBy    Int?
+  createdAt     DateTime      @default(now())
+  approver      User?         @relation("PayrollApprover", fields: [approvedBy], references: [id])
+  employee      Staff         @relation(fields: [employeeId], references: [id])
+  items         PayrollItem[]
+
+  @@unique([employeeId, month, year])
+}
+
+model PayrollItem {
+  id          Int      @id @default(autoincrement())
+  payrollId   Int
+  type        String
+  amount      Float
+  description String?
+  createdAt   DateTime @default(now())
+  payroll     Payroll  @relation(fields: [payrollId], references: [id])
+}
+
+model SalaryAdjustment {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  type       String
+  amount     Float
+  reason     String
+  month      Int
+  year       Int
+  createdAt  DateTime @default(now())
+  employee   Staff    @relation(fields: [employeeId], references: [id])
+}
+
+model LeaveRequest {
+  id         Int       @id @default(autoincrement())
+  employeeId Int
+  leaveType  String
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+  status     String    @default("PENDING")
+  reviewedBy Int?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  employee   Staff     @relation(fields: [employeeId], references: [id])
+  reviewer   User?     @relation("LeaveReviewer", fields: [reviewedBy], references: [id])
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  entityType  String?
+  entityId    Int?
+  oldData     String?
+  newData     String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+enum FileCategory {
+  RADIOLOGY
+  LAB_RESULT
+  REPORT
+  OTHER
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  title       String
+  message     String
+  type        String   @default("INFO")
+  isRead      Boolean  @default(false)
+  link        String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String   // JSON stringified value
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
