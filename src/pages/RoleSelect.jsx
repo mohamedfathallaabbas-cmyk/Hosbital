@@ -75,7 +75,7 @@ export default function RoleSelect() {
   const handleFpStep1 = async () => {
     setFpError(''); setFpLoading(true);
     try {
-      const res = await axios.post('https://backend-silver-pond-9900.fly.dev/api/auth/forgot-password', { email: fpEmail });
+      const res = await axios.post('http://localhost:5000/api/auth/forgot-password', { email: fpEmail });
       setFpHasNid(res.data.hasNationalId);
       setForgotStep('reset');
     } catch (err) {
@@ -89,7 +89,7 @@ export default function RoleSelect() {
     if (fpNewPass !== fpConfirm) return setFpError('كلمتا المرور غير متطابقتين');
     setFpLoading(true);
     try {
-      await axios.post('https://backend-silver-pond-9900.fly.dev/api/auth/reset-password', {
+      await axios.post('http://localhost:5000/api/auth/reset-password', {
         email: fpEmail,
         nationalId: fpNationalId || undefined,
         newPassword: fpNewPass,
@@ -116,7 +116,7 @@ export default function RoleSelect() {
     
     try {
       // الاتصال بالباك إند الحقيقي
-      const response = await axios.post('https://backend-silver-pond-9900.fly.dev/api/auth/login', {
+      const response = await axios.post('http://localhost:5000/api/auth/login', {
         email,
         password
       });

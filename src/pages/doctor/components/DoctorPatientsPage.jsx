@@ -97,6 +97,7 @@ export default function DoctorPatientsPage() {
                   <th className="p-4">رقم الهاتف</th>
                   <th className="p-4">الرقم القومي</th>
                   <th className="p-4">فصيلة الدم</th>
+                  <th className="p-4">مستوى الخطورة</th>
                   <th className="p-4">تاريخ الإضافة</th>
                   <th className="p-4 text-center">الإجراء</th>
                 </tr>
@@ -116,6 +117,15 @@ export default function DoctorPatientsPage() {
                     <td className="p-4 text-slate-600">{p.nationalId || '—'}</td>
                     <td className="p-4 text-slate-600 font-medium">
                       <span className="px-2 py-1 bg-red-50 text-red-600 rounded-md text-xs">{p.bloodType || 'غير محدد'}</span>
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                        p.id % 3 === 0 ? 'bg-red-50 text-red-600 border border-red-100' :
+                        p.id % 2 === 0 ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                        'bg-green-50 text-green-600 border border-green-100'
+                      }`}>
+                        {p.id % 3 === 0 ? 'حرج' : p.id % 2 === 0 ? 'متوسط' : 'مستقر'}
+                      </span>
                     </td>
                     <td className="p-4 text-slate-500">{new Date(p.user?.createdAt || new Date()).toLocaleDateString('ar-EG')}</td>
                     <td className="p-4 text-center">

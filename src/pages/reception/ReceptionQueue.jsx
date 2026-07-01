@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Clock, AlertTriangle, CheckCircle, Phone, Bell, ChevronRight, Zap, User, RefreshCw } from 'lucide-react';
 import { ToastContainer } from '../../components/hospital/Toast';
 import { useToast } from '../../hooks/useToast';
+import api from '../../lib/api';
 
 const PRIORITY_CONFIG = {
   حرجة: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: '#fca5a5', label: 'حرجة', icon: '🔴', order: 1 },
@@ -10,19 +11,11 @@ const PRIORITY_CONFIG = {
   عادية: { color: '#14b8a6', bg: 'rgba(20,184,166,0.1)', border: '#5eead4', label: 'عادية', icon: '🟢', order: 3 },
 };
 
-const INITIAL_QUEUE = [
-  { id: 'Q-001', name: 'محمد أحمد السيد', age: 45, complaint: 'ألم في الصدر وضيق تنفس', priority: 'حرجة', dept: 'قلب', doctor: 'د. أحمد محمود', arrivalTime: '09:05', status: 'waiting', ticket: 'A01', phone: '01001112233' },
-  { id: 'Q-002', name: 'نورا عبدالله الرشيدي', age: 32, complaint: 'صداع نصفي حاد', priority: 'عاجلة', dept: 'أعصاب', doctor: 'د. سارة الشافعي', arrivalTime: '09:22', status: 'waiting', ticket: 'B01', phone: '01122334455' },
-  { id: 'Q-003', name: 'خالد عمر الدالي', age: 58, complaint: 'متابعة ضغط الدم', priority: 'عادية', dept: 'قلب', doctor: 'د. أحمد محمود', arrivalTime: '09:31', status: 'called', ticket: 'A02', phone: '01233445566' },
-  { id: 'Q-004', name: 'أميرة سعيد جمعة', age: 28, complaint: 'ألم في الظهر', priority: 'عادية', dept: 'عظام', doctor: 'د. محمد إبراهيم', arrivalTime: '09:45', status: 'waiting', ticket: 'C01', phone: '01344556677' },
-  { id: 'Q-005', name: 'عبدالرحمن حسين مكاوي', age: 67, complaint: 'ألم مفاصل وتورم', priority: 'عاجلة', dept: 'عظام', doctor: 'د. محمد إبراهيم', arrivalTime: '10:00', status: 'waiting', ticket: 'C02', phone: '01455667788' },
-  { id: 'Q-006', name: 'سلمى حسن الطيب', age: 22, complaint: 'حمى وسعال', priority: 'عادية', dept: 'باطنة', doctor: 'د. عمر النجار', arrivalTime: '10:15', status: 'done', ticket: 'D01', phone: '01566778899' },
-];
-
 function ElapsedTime({ arrivalTime }) {
   const [elapsed, setElapsed] = useState('');
   useEffect(() => {
     const calc = () => {
+      if (!arrivalTime) return setElapsed('—');
       const [h, m] = arrivalTime.split(':').map(Number);
       const now = new Date();
       const arrival = new Date();
@@ -37,31 +30,122 @@ function ElapsedTime({ arrivalTime }) {
   return <span>{elapsed}</span>;
 }
 
+const calculateAge = (dob) => {
+  if (!dob) return 30;
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
 export default function ReceptionQueue() {
-  const [queue, setQueue] = useState(INITIAL_QUEUE);
+  const [queue, setQueue] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('all');
   const { toasts, addToast, removeToast } = useToast();
 
-  const depts = ['all', ...new Set(INITIAL_QUEUE.map(p => p.dept))];
+  const loadQueue = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/appointments');
+      const list = response.data?.data || response.data || [];
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const mapped = list
+        .filter(apt => {
+          const aptDateStr = new Date(apt.date).toISOString().split('T')[0];
+          return aptDateStr === todayStr && ['WAITING', 'IN_PROGRESS', 'COMPLETED'].includes(apt.status);
+        })
+        .map(apt => {
+          let timeFormatted = '09:00';
+          if (apt.timeSlot) {
+            const match = apt.timeSlot.match(/(\d+):(\d+)\s*(ص|م)/);
+            if (match) {
+              let hh = parseInt(match[1]);
+              const mm = match[2];
+              const period = match[3];
+              if (period === 'م' && hh < 12) hh += 12;
+              if (period === 'ص' && hh === 12) hh = 0;
+              timeFormatted = `${hh.toString().padStart(2, '0')}:${mm}`;
+            }
+          } else {
+            const dateObj = new Date(apt.createdAt);
+            timeFormatted = `${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`;
+          }
+
+          return {
+            id: apt.id,
+            name: apt.patient?.user?.name || 'مريض مجهول',
+            age: calculateAge(apt.patient?.dateOfBirth),
+            complaint: apt.triage?.notes || 'كشف روتيني وسجل العلامات الحيوية',
+            priority: apt.triage?.priorityLevel || 'عادية',
+            dept: apt.doctor?.department?.name || 'عام',
+            doctor: apt.doctor?.user?.name || 'غير محدد',
+            arrivalTime: timeFormatted,
+            status: apt.status === 'WAITING' ? 'waiting' : apt.status === 'IN_PROGRESS' ? 'called' : 'done',
+            ticket: `T-${apt.id.toString().padStart(3, '0')}`,
+            phone: apt.patient?.user?.phone || 'غير مسجل'
+          };
+        });
+
+      setQueue(mapped);
+    } catch (err) {
+      console.error(err);
+      addToast('فشل في تحميل قائمة الانتظار من الخادم', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    loadQueue();
+    const interval = setInterval(loadQueue, 15000); // refresh every 15 seconds
+    return () => clearInterval(interval);
+  }, [loadQueue]);
+
+  const changeStatus = async (id, newStatus) => {
+    const dbStatus = newStatus === 'called' ? 'IN_PROGRESS' : newStatus === 'done' ? 'COMPLETED' : 'WAITING';
+    try {
+      await api.patch(`/appointments/${id}/status`, { status: dbStatus });
+      addToast(
+        newStatus === 'called' ? 'تم استدعاء المريض بنجاح ✓' : 'تم إنهاء فحص المريض ✓',
+        'success'
+      );
+      loadQueue();
+    } catch (err) {
+      addToast('فشل في تحديث حالة الحجز بالسيرفر', 'error');
+    }
+  };
+
+  const callNext = async () => {
+    const sorted = [...queue]
+      .filter(p => filter === 'all' ? p.status !== 'done' : p.status === filter)
+      .filter(p => deptFilter === 'all' || p.dept === deptFilter)
+      .sort((a, b) => {
+        const orderA = PRIORITY_CONFIG[a.priority]?.order || 3;
+        const orderB = PRIORITY_CONFIG[b.priority]?.order || 3;
+        return orderA - orderB;
+      });
+
+    const next = sorted.find(p => p.status === 'waiting');
+    if (!next) return addToast('لا يوجد مرضى في الانتظار', 'info');
+    await changeStatus(next.id, 'called');
+  };
+
+  const depts = ['all', ...new Set(queue.map(p => p.dept))];
   const sorted = [...queue]
     .filter(p => filter === 'all' ? p.status !== 'done' : p.status === filter)
     .filter(p => deptFilter === 'all' || p.dept === deptFilter)
-    .sort((a, b) => PRIORITY_CONFIG[a.priority].order - PRIORITY_CONFIG[b.priority].order);
-
-  const callNext = () => {
-    const next = sorted.find(p => p.status === 'waiting');
-    if (!next) return addToast('لا يوجد مرضى في الانتظار', 'info');
-    setQueue(prev => prev.map(p => p.id === next.id ? { ...p, status: 'called' } : p));
-    addToast(`تم استدعاء ${next.name} — تذكرة ${next.ticket} 📢`, 'success');
-  };
-
-  const changeStatus = (id, newStatus) => {
-    setQueue(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
-    const p = queue.find(q => q.id === id);
-    const msgs = { called: 'تم استدعاء', done: 'تم إنهاء فحص' };
-    if (msgs[newStatus]) addToast(`${msgs[newStatus]} ${p?.name} ✓`, newStatus === 'done' ? 'success' : 'info');
-  };
+    .sort((a, b) => {
+      const orderA = PRIORITY_CONFIG[a.priority]?.order || 3;
+      const orderB = PRIORITY_CONFIG[b.priority]?.order || 3;
+      return orderA - orderB;
+    });
 
   const stats = {
     waiting: queue.filter(p => p.status === 'waiting').length,
@@ -76,13 +160,19 @@ export default function ReceptionQueue() {
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div className="section-header mb-0">
           <div className="section-header-line" style={{ background: 'linear-gradient(180deg, #f59e0b, #d97706)' }} />
-          <h3 className="text-xl font-bold">قائمة الانتظار الحية</h3>
+          <h3 className="text-xl font-bold">قائمة الانتظار الحية (اليوم)</h3>
         </div>
-        <button onClick={callNext}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-white font-bold font-cairo shadow-lg hover:shadow-xl transition-all"
-          style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
-          <Bell className="w-5 h-5" />استدعاء التالي
-        </button>
+        <div className="flex gap-2">
+          <button onClick={loadQueue} disabled={loading}
+            className="p-3 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center">
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button onClick={callNext}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl text-white font-bold font-cairo shadow-lg hover:shadow-xl transition-all"
+            style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+            <Bell className="w-5 h-5" />استدعاء التالي
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -128,7 +218,7 @@ export default function ReceptionQueue() {
       <div className="space-y-3">
         <AnimatePresence>
           {sorted.map((patient, i) => {
-            const pc = PRIORITY_CONFIG[patient.priority];
+            const pc = PRIORITY_CONFIG[patient.priority] || PRIORITY_CONFIG['عادية'];
             return (
               <motion.div key={patient.id}
                 initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
@@ -152,7 +242,7 @@ export default function ReceptionQueue() {
                       <span className="text-xs px-2 py-0.5 rounded-lg font-semibold"
                         style={{ background: pc.bg, color: pc.color }}>{pc.icon} {pc.label}</span>
                       {patient.status === 'called' && (
-                        <span className="text-xs px-2 py-0.5 rounded-lg bg-blue-50 text-blue-600 font-semibold animate-pulse">📢 مستدعى</span>
+                        <span className="text-xs px-2 py-0.5 rounded-lg bg-blue-50 text-blue-600 font-semibold animate-pulse">📢 يتم الكشف</span>
                       )}
                     </div>
                     <p className="text-slate-500 text-sm truncate">{patient.complaint}</p>
@@ -160,7 +250,7 @@ export default function ReceptionQueue() {
                       <span className="flex items-center gap-1"><User className="w-3 h-3" />{patient.age} سنة</span>
                       <span>{patient.dept} · {patient.doctor}</span>
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />وصل {patient.arrivalTime} — انتظر: <ElapsedTime arrivalTime={patient.arrivalTime} />
+                        <Clock className="w-3 h-3" />وقت الحجز {patient.arrivalTime}
                       </span>
                     </div>
                   </div>
@@ -194,7 +284,7 @@ export default function ReceptionQueue() {
         {sorted.length === 0 && (
           <div className="text-center py-16 text-slate-300">
             <Users className="w-14 h-14 mx-auto mb-3" />
-            <p className="font-medium">لا يوجد مرضى في هذا الفلتر</p>
+            <p className="font-medium">لا يوجد مرضى في الانتظار حالياً</p>
           </div>
         )}
       </div>

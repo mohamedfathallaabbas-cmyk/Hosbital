@@ -206,7 +206,7 @@ router.post('/blood-donations', async (req, res, next) => {
 
 // ── GET /patient/:patientId ────────────────────────────────────────────────────
 // IDOR FIX: Patients can only access their own history; staff need VIEW_MEDICAL_RECORDS.
-router.get('/patient/:patientId', async (req, res, next) => {
+router.get('/patient/:patientId', authenticate, async (req, res, next) => {
   const requestedPatientId = parseInt(req.params.patientId);
   const { role, patientId: ownPatientId } = req.user;
 
@@ -231,7 +231,7 @@ router.get('/patient/:patientId', async (req, res, next) => {
       prisma.medicalRecord.findMany({
         where:   { appointment: { patientId: requestedPatientId } },
         include: {
-          appointment: { include: { doctor: { include: { user: true, department: true } } } },
+          appointment: { include: { doctor: { include: { user: true, department: true } }, triage: true } },
           prescriptions: { include: { items: { include: { medicine: true } } } },
         },
         orderBy: { createdAt: 'desc' },
@@ -297,8 +297,15 @@ router.post('/', requirePermission(PERMISSIONS.CREATE_MEDICAL_RECORD), async (re
   if (!appointmentId) return next(new ValidationError('معرف الموعد إجباري'));
 
   try {
-    const newRecord = await prisma.medicalRecord.create({
-      data: {
+    const newRecord = await prisma.medicalRecord.upsert({
+      where:  { appointmentId: parseInt(appointmentId) },
+      update: {
+        complaint:     complaint     || undefined,
+        diagnosis:     diagnosis     || undefined,
+        treatmentPlan: treatmentPlan || undefined,
+        notes:         notes         || undefined,
+      },
+      create: {
         appointmentId: parseInt(appointmentId),
         complaint:     complaint     || null,
         diagnosis:     diagnosis     || null,
@@ -328,6 +335,7 @@ router.post('/', requirePermission(PERMISSIONS.CREATE_MEDICAL_RECORD), async (re
           data: {
             prescriptionId: newPrescription.id,
             medicineId:     medicine.id,
+            medicineName:   item.name,
             dosage:         item.dosage,
             frequency:      item.frequency,
             duration:       item.duration,

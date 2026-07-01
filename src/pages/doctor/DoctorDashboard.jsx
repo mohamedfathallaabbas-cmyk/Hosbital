@@ -5,7 +5,7 @@ import api from '../../lib/api';
 import {
   LayoutDashboard, Users, Calendar, FileText, ClipboardList,
   AlertTriangle, Bed, User, LogOut, HeartPulse,
-  Stethoscope, Clock, TrendingUp, Menu, X, Eye, Pencil, CheckCircle, Pill, TestTube2, FlaskConical, Printer, Mic, Square, Loader2
+  Stethoscope, Clock, TrendingUp, Menu, X, Eye, Pencil, CheckCircle, Pill, TestTube2, FlaskConical, Printer, Mic, Square, Loader2, Info
 } from 'lucide-react';
 import PrintTemplate from '../../components/hospital/PrintTemplate';
 import Topbar from '../../components/hospital/Topbar';
@@ -13,35 +13,14 @@ import StatCard from '../../components/hospital/StatCard';
 import Modal from '../../components/hospital/Modal';
 import { ToastContainer } from '../../components/hospital/Toast';
 import { useToast } from '../../hooks/useToast';
-import DoctorRisk from './components/DoctorRisk';
-import DoctorPrescription from './components/DoctorPrescription';
 import DoctorPatientsPage from './components/DoctorPatientsPage';
 
 const sidebarLinks = [
   { icon: LayoutDashboard, label: 'لوحة التحكم', path: '/doctor/dashboard' },
   { icon: Users, label: 'مرضى اليوم', path: '/doctor/today-patients' },
-  { icon: Calendar, label: 'الجدول الأسبوعي', path: '/doctor/schedule' },
   { icon: Users, label: 'مرضاي', path: '/doctor/patients' },
-  { icon: Pill, label: 'الوصفة الإلكترونية', path: '/doctor/prescription' },
-  { icon: AlertTriangle, label: 'مستوى الخطورة', path: '/doctor/risk' },
   { icon: Bed, label: 'الأسرة المتاحة', path: '/doctor/beds' },
   { icon: User, label: 'ملفي الشخصي', path: '/doctor/profile' },
-];
-
-const INITIAL_PATIENTS = [
-  { id: 1, name: 'محمد أحمد السيد', age: 45, time: '9:00 ص', status: 'waiting', complaint: 'ألم في الصدر وضيق تنفس', risk: 'high', phone: '01001112233', blood: 'A+', address: 'حلوان، القاهرة' },
-  { id: 2, name: 'نورا عبدالله الرشيدي', age: 32, time: '9:30 ص', status: 'in-progress', complaint: 'صداع نصفي مزمن', risk: 'medium', phone: '01122334455', blood: 'B+', address: 'مدينة نصر' },
-  { id: 3, name: 'خالد عمر الدالي', age: 58, time: '10:00 ص', status: 'done', complaint: 'متابعة ضغط الدم', risk: 'low', phone: '01233445566', blood: 'O-', address: 'المعادي' },
-  { id: 4, name: 'أميرة سعيد جمعة', age: 28, time: '10:30 ص', status: 'waiting', complaint: 'ألم في الظهر', risk: 'low', phone: '01344556677', blood: 'AB+', address: 'الزيتون' },
-  { id: 5, name: 'عبدالرحمن حسين مكاوي', age: 67, time: '11:00 ص', status: 'waiting', complaint: 'ألم مفاصل وتورم', risk: 'medium', phone: '01455667788', blood: 'A-', address: 'شبرا الخيمة' },
-];
-
-const schedule = [
-  { day: 'الأحد', date: '20 أبريل', slots: 8, booked: 7 },
-  { day: 'الاثنين', date: '21 أبريل', slots: 10, booked: 6 },
-  { day: 'الثلاثاء', date: '22 أبريل', slots: 8, booked: 8 },
-  { day: 'الأربعاء', date: '23 أبريل', slots: 6, booked: 4 },
-  { day: 'الخميس', date: '24 أبريل', slots: 10, booked: 9 },
 ];
 
 const riskColor = { high: 'badge-danger', medium: 'badge-warning', low: 'badge-success' };
@@ -148,8 +127,7 @@ function PatientViewModal({ patient, onClose }) {
 }
 
 function DiagnosisModal({ patient, onSave, onClose }) {
-  const [form, setForm] = useState({ diagnosis: '', medications: '', notes: '', risk: 'medium', nextVisit: '', labTestId: '', audioBase64: null });
-  const [catalog, setCatalog] = useState([]);
+  const [form, setForm] = useState({ diagnosis: '', medications: '', notes: '', risk: 'medium', nextVisit: '', labTests: '', audioBase64: null });
   
   // Voice Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -158,9 +136,7 @@ function DiagnosisModal({ patient, onSave, onClose }) {
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  useEffect(() => {
-    api.get('/labs/catalog').then(res => setCatalog(res.data)).catch(console.error);
-  }, []);
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const startRecording = async () => {
     try {
@@ -179,7 +155,6 @@ function DiagnosisModal({ patient, onSave, onClose }) {
           set('audioBase64', reader.result);
         };
         
-        // Mock Whisper API 
         setTimeout(() => {
           const transcript = "المريض يعاني من أعراض واضحة تستدعي المتابعة. تم تسجيل هذه الملاحظة صوتيا عبر النظام الذكي.";
           set('notes', (prev) => prev ? prev + '\n' + transcript : transcript);
@@ -212,11 +187,11 @@ function DiagnosisModal({ patient, onSave, onClose }) {
       </div>
       <div>
         <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">التشخيص</label>
-        <input required value={form.diagnosis} onChange={e => set('diagnosis', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white outline-none focus:border-teal-400 dark:focus:border-teal-500 font-cairo" placeholder="أدخل التشخيص الطبي..." />
+        <textarea required value={form.diagnosis} onChange={e => set('diagnosis', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-20 resize-none outline-none focus:border-teal-400 dark:focus:border-teal-500 font-cairo" placeholder="أدخل التشخيص الطبي..." />
       </div>
       <div>
         <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">الأدوية الموصوفة</label>
-        <input value={form.medications} onChange={e => set('medications', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white outline-none focus:border-teal-400 dark:focus:border-teal-500 font-cairo" placeholder="اسم الدواء، الجرعة، المدة..." />
+        <textarea value={form.medications} onChange={e => set('medications', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-20 resize-none outline-none focus:border-teal-400 dark:focus:border-teal-500 font-cairo" placeholder="اسم الدواء، الجرعة، المدة...&#10;مثال: باراسيتامول 500مج — حبة كل 8 ساعات — لمدة 5 أيام" />
       </div>
       <div>
         <div className="flex justify-between items-center mb-1">
@@ -236,12 +211,7 @@ function DiagnosisModal({ patient, onSave, onClose }) {
         <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1 flex items-center gap-2">
           <TestTube2 className="w-4 h-4 text-blue-500" />طلب تحاليل / أشعة
         </label>
-        <select value={form.labTestId} onChange={e => set('labTestId', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white font-cairo outline-none">
-          <option value="">لا يوجد طلب</option>
-          {catalog.map(t => (
-            <option key={t.id} value={t.id}>{t.name} ({t.type})</option>
-          ))}
-        </select>
+        <textarea value={form.labTests} onChange={e => set('labTests', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-20 resize-none font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500" placeholder="أدخل التحاليل المطلوبة...&#10;مثال: صورة دم كاملة (CBC)، تحليل سكر تراكمي" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -252,7 +222,7 @@ function DiagnosisModal({ patient, onSave, onClose }) {
         </div>
         <div>
           <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">موعد المتابعة</label>
-          <input type="date" value={form.nextVisit} onChange={e => set('nextVisit', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500" />
+          <input type="date" min={todayStr} value={form.nextVisit} onChange={e => set('nextVisit', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500" />
         </div>
       </div>
       <div className="flex gap-3">
@@ -272,7 +242,8 @@ function TodayPatients() {
   useEffect(() => {
     api.get('/appointments')
       .then(res => {
-        const formatted = res.data
+        const appointmentsList = res.data?.data || res.data || [];
+        const formatted = appointmentsList
           .filter(apt => apt.status !== 'SCHEDULED' && apt.status !== 'CANCELLED')
           .map(apt => ({
             id: apt.id,
@@ -306,36 +277,57 @@ function TodayPatients() {
 
   const saveDiagnosis = async (form) => {
     try {
+      const parsedPrescriptions = [];
+      if (form.medications && form.medications.trim()) {
+        const lines = form.medications.split('\n').map(l => l.trim()).filter(Boolean);
+        for (const line of lines) {
+          const parts = line.split(/[—\-\|]+/).map(p => p.trim()).filter(Boolean);
+          if (parts.length > 0) {
+            parsedPrescriptions.push({
+              name: parts[0],
+              dosage: parts[1] || 'حسب الوصفة',
+              frequency: parts[2] || 'حسب الوصفة',
+              duration: parts[3] || 'حسب الوصفة'
+            });
+          }
+        }
+      }
+
       await api.post('/medical-records', {
         appointmentId: diagP.id,
         complaint: diagP.complaint,
         diagnosis: form.diagnosis,
         notes: form.notes,
-        prescriptions: form.medications ? [{ name: form.medications, dosage: 'حبة', frequency: 'مرتين', duration: 'اسبوع' }] : []
+        prescriptions: parsedPrescriptions
       });
 
-      if (form.labTestId) {
+      if (form.labTests && form.labTests.trim()) {
         const labPatientId = diagP.patientId;
-        if (!labPatientId) {
-          addToast('تحذير: لم يتم إرسال طلب التحليل لأن هوية المريض غير موجودة', 'error');
-        } else {
-          await api.post('/labs/orders', {
-            patientId: parseInt(labPatientId),
-            testId: parseInt(form.labTestId),
-            notes: 'طلب فحص من الطبيب'
-          });
+        if (labPatientId) {
+          try {
+            const catalogRes = await api.get('/labs/catalog');
+            const catalog = catalogRes.data || [];
+            const firstTest = catalog[0];
+            if (firstTest) {
+              await api.post('/labs/orders', {
+                patientId: parseInt(labPatientId),
+                testId: firstTest.id,
+                notes: form.labTests
+              });
+            }
+          } catch (labErr) {
+            console.error('Lab order error:', labErr);
+          }
         }
       }
       
-      // Save voice attachment if recorded
       if (form.audioBase64) {
-        // Normally we'd send to an attachment endpoint, but we just log it or pass it.
         console.log("Voice attachment recorded with length:", form.audioBase64.length);
       }
 
       setPatients(prev => prev.map(p => p.id === diagP.id ? { ...p, status: 'done', risk: form.risk } : p));
       setDiagP(null);
-      addToast('تم حفظ التشخيص وإرسال طلب المعمل بنجاح ✓', 'success');
+      addToast('تم حفظ التشخيص بنجاح ✓', 'success');
     } catch (err) {
       addToast('فشل في حفظ السجل الطبي', 'error');
     }
@@ -393,6 +385,86 @@ function TodayPatients() {
         {diagP && <DiagnosisModal patient={diagP} onSave={saveDiagnosis} onClose={() => setDiagP(null)} />}
       </Modal>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+    </div>
+  );
+}
+
+function BedsPage() {
+  const [admissions, setAdmissions] = useState([]);
+  const [allBeds, setAllBeds] = useState([]);
+  const [selectedBed, setSelectedBed] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/admissions/active').catch(() => ({ data: [] })),
+      api.get('/admissions').catch(() => ({ data: [] }))
+    ]).then(([activeRes, allRes]) => {
+      const activeAdmissions = Array.isArray(activeRes.data) ? activeRes.data : [];
+      setAdmissions(activeAdmissions);
+
+      const occupiedBedIds = new Set(activeAdmissions.map(a => a.bedId));
+      const beds = [];
+      for (let i = 1; i <= 20; i++) {
+        const admission = activeAdmissions.find(a => a.bed?.bedNumber === `B-0${i}` || a.bed?.bedNumber === `P-0${i - 2}` || a.bedId === i);
+        beds.push({
+          number: i,
+          status: admission ? 'occupied' : (i > 18 ? 'maintenance' : 'available'),
+          admission: admission || null
+        });
+      }
+      setAllBeds(beds);
+    }).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  const occupiedCount = allBeds.filter(b => b.status === 'occupied').length;
+  const availableCount = allBeds.filter(b => b.status === 'available').length;
+  const maintenanceCount = allBeds.filter(b => b.status === 'maintenance').length;
+
+  return (
+    <div className="p-6">
+      <div className="section-header"><div className="section-header-line" style={{ background: 'linear-gradient(180deg, #14b8a6, #0d9488)' }} /><h3 className="text-xl font-bold">الأسرة المتاحة</h3></div>
+      <div className="flex gap-4 mb-6 flex-wrap">
+        {[{ label: 'مشغولة', count: occupiedCount, color: '#ef4444' }, { label: 'متاحة', count: availableCount, color: '#14b8a6' }, { label: 'صيانة', count: maintenanceCount, color: '#f59e0b' }].map((s, i) => (
+          <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-5 py-4 shadow-sm border border-slate-100"><div className="w-4 h-4 rounded-full" style={{ background: s.color }} /><span className="text-slate-700 font-medium text-sm">{s.label}</span><span className="text-2xl font-black text-slate-900">{s.count}</span></div>
+        ))}
+      </div>
+      <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-3">
+        {allBeds.map(bed => (
+          <div key={bed.number} onClick={() => bed.status === 'occupied' && bed.admission && setSelectedBed(bed)}
+            className={`aspect-square rounded-xl flex flex-col items-center justify-center transition-all hover:scale-105 shadow-sm text-white font-bold text-sm ${bed.status === 'occupied' ? 'cursor-pointer' : 'cursor-default'}`}
+            style={{ background: bed.status === 'occupied' ? 'linear-gradient(135deg, #ef4444, #dc2626)' : bed.status === 'available' ? 'linear-gradient(135deg, #14b8a6, #0d9488)' : 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+            <Bed className="w-4 h-4 mb-1 opacity-80" />{bed.number}
+          </div>
+        ))}
+      </div>
+
+      <Modal open={!!selectedBed} onClose={() => setSelectedBed(null)} title="تفاصيل السرير المشغول" size="md">
+        {selectedBed?.admission && (
+          <div className="p-6 space-y-4">
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100">
+              <p className="text-xs text-red-500 font-bold mb-1">المريض</p>
+              <p className="text-lg font-black text-slate-900">{selectedBed.admission.patient?.user?.name || 'غير محدد'}</p>
+              <p className="text-slate-500 text-sm">{selectedBed.admission.reason}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100">
+                <p className="text-xs text-blue-500 font-bold mb-1">الطبيب المشرف</p>
+                <p className="text-slate-900 font-bold">{selectedBed.admission.doctor?.user?.name || 'غير محدد'}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-teal-50 dark:bg-teal-900/20 border border-teal-100">
+                <p className="text-xs text-teal-500 font-bold mb-1">تاريخ التنويم</p>
+                <p className="text-slate-900 font-bold">{new Date(selectedBed.admission.admittedAt).toLocaleDateString('ar-EG')}</p>
+              </div>
+            </div>
+            <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-100">
+              <p className="text-xs text-purple-500 font-bold mb-1">الغرفة / السرير</p>
+              <p className="text-slate-900 font-bold">{selectedBed.admission.bed?.room?.roomNumber || '—'} / سرير {selectedBed.admission.bed?.bedNumber || selectedBed.number}</p>
+            </div>
+            <button onClick={() => setSelectedBed(null)} className="w-full py-3 rounded-xl text-white font-bold font-cairo" style={{ background: 'linear-gradient(135deg, #14b8a6, #0d9488)' }}>إغلاق</button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -459,7 +531,7 @@ export default function DoctorDashboard() {
         <div className="mx-4 mt-4 p-3 rounded-xl" style={{ background: 'rgba(20,184,166,0.15)' }}>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold" style={{ background: 'linear-gradient(135deg, #14b8a6, #0d9488)' }}>{user.name?.charAt(0) || 'ط'}</div>
-            <div><div className="text-white text-sm font-semibold truncate max-w-36">{user.name}</div><div className="text-teal-300 text-xs">طبيب</div></div>
+            <div><div className="text-white text-sm font-semibold truncate max-w-36">{user.name || 'الطبيب'}</div><div className="text-teal-300 text-xs">طبيب</div></div>
           </div>
         </div>
         <nav className="flex-1 p-3 mt-2">
@@ -480,62 +552,25 @@ export default function DoctorDashboard() {
           <Route path="dashboard" element={<DoctorHome />} />
           <Route path="today-patients" element={<TodayPatients />} />
           <Route path="patients" element={<DoctorPatientsPage />} />
-          <Route path="prescription" element={<DoctorPrescription />} />
-          <Route path="schedule" element={
-            <div className="p-6">
-              <div className="section-header"><div className="section-header-line" style={{ background: 'linear-gradient(180deg, #14b8a6, #0d9488)' }} /><h3 className="text-xl font-bold">الجدول الأسبوعي</h3></div>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                {schedule.map((day, i) => (
-                  <div key={i} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-                    <div className="text-center mb-4"><div className="font-black text-slate-900">{day.day}</div><div className="text-slate-400 text-xs">{day.date}</div></div>
-                    <div className="text-center"><div className="text-3xl font-black mb-1" style={{ color: '#14b8a6' }}>{day.booked}/{day.slots}</div><div className="text-slate-400 text-xs">محجوز</div></div>
-                    <div className="mt-3 h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(day.booked / day.slots) * 100}%`, background: 'linear-gradient(135deg, #14b8a6, #0d9488)' }} /></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          } />
-          <Route path="beds" element={
-            <div className="p-6">
-              <div className="section-header"><div className="section-header-line" style={{ background: 'linear-gradient(180deg, #14b8a6, #0d9488)' }} /><h3 className="text-xl font-bold">الأسرة المتاحة</h3></div>
-              <div className="flex gap-4 mb-6 flex-wrap">
-                {[{ label: 'مشغولة', count: 14, color: '#ef4444' }, { label: 'متاحة', count: 4, color: '#14b8a6' }, { label: 'صيانة', count: 2, color: '#f59e0b' }].map((s, i) => (
-                  <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-5 py-4 shadow-sm border border-slate-100"><div className="w-4 h-4 rounded-full" style={{ background: s.color }} /><span className="text-slate-700 font-medium text-sm">{s.label}</span><span className="text-2xl font-black text-slate-900">{s.count}</span></div>
-                ))}
-              </div>
-              <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-3">
-                {Array.from({ length: 20 }, (_, i) => ({ number: i + 1, status: i < 14 ? 'occupied' : i < 18 ? 'available' : 'maintenance' })).map(bed => (
-                  <div key={bed.number} className="aspect-square rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-105 shadow-sm text-white font-bold text-sm"
-                    style={{ background: bed.status === 'occupied' ? 'linear-gradient(135deg, #ef4444, #dc2626)' : bed.status === 'available' ? 'linear-gradient(135deg, #14b8a6, #0d9488)' : 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
-                    <Bed className="w-4 h-4 mb-1 opacity-80" />{bed.number}
-                  </div>
-                ))}
-              </div>
-            </div>
-          } />
-          <Route path="risk" element={<DoctorRisk />} />
+          <Route path="beds" element={<BedsPage />} />
           <Route path="profile" element={
             <div className="p-6">
               <div className="section-header"><div className="section-header-line" style={{ background: 'linear-gradient(180deg, #14b8a6, #0d9488)' }} /><h3 className="text-xl font-bold">ملفي الشخصي</h3></div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="bg-white rounded-2xl p-6 text-center shadow-sm border border-slate-100">
-                  <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-white text-3xl font-black mx-auto mb-4 shadow-xl" style={{ background: 'linear-gradient(135deg, #14b8a6, #0d9488)' }}>س</div>
-                  <h3 className="text-xl font-black text-slate-900">د. سارة خالد الشافعي</h3>
-                  <p className="text-slate-500 text-sm mb-4">استشارية أمراض الأعصاب</p>
-                  <div className="flex justify-center gap-2"><span className="badge-success">نشطة</span><span className="badge-info">متاحة</span></div>
+                  <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-white text-3xl font-black mx-auto mb-4 shadow-xl" style={{ background: 'linear-gradient(135deg, #14b8a6, #0d9488)' }}>{user.name?.charAt(0) || 'ط'}</div>
+                  <h3 className="text-xl font-black text-slate-900">{user.name || 'الطبيب'}</h3>
+                  <p className="text-slate-500 text-sm mb-4">طبيب</p>
+                  <div className="flex justify-center gap-2"><span className="badge-success">نشط</span><span className="badge-info">متاح</span></div>
                 </div>
                 <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
                   <h4 className="font-bold text-slate-900 mb-4">البيانات المهنية</h4>
                   <div className="grid grid-cols-2 gap-4">
                     {[
-                      { label: 'الاسم', value: 'د. سارة خالد الشافعي' },
-                      { label: 'التخصص', value: 'أمراض الأعصاب' },
-                      { label: 'رقم الترخيص', value: 'EG-HEA-1892' },
-                      { label: 'سنوات الخبرة', value: '12 سنة' },
-                      { label: 'العيادة', value: 'عيادة الأعصاب 3' },
-                      { label: 'الجدول', value: 'الأحد - الثلاثاء - الخميس' },
-                      { label: 'رقم الهاتف', value: '01112345678' },
-                      { label: 'سعر الكشف', value: '450 ج.م' },
+                      { label: 'الاسم', value: user.name || '—' },
+                      { label: 'البريد الإلكتروني', value: user.email || '—' },
+                      { label: 'الدور', value: 'طبيب' },
+                      { label: 'رقم الهاتف', value: user.phone || '—' },
                     ].map((f, i) => (
                       <div key={i} className="p-3 rounded-xl bg-slate-50"><p className="text-slate-400 text-xs mb-1">{f.label}</p><p className="text-slate-800 font-medium text-sm">{f.value}</p></div>
                     ))}

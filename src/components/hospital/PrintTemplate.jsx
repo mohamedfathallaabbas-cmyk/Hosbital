@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { HeartPulse, User, Calendar, MapPin, Phone } from 'lucide-react';
 
 export default function PrintTemplate({ type, data, onClose }) {
@@ -8,16 +9,16 @@ export default function PrintTemplate({ type, data, onClose }) {
     window.print();
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-white overflow-y-auto no-print-bg">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-white overflow-y-auto no-print-bg print-template-container" dir="rtl">
       <div className="max-w-[800px] mx-auto p-10 bg-white print:p-0">
         
         {/* Buttons - Hidden on Print */}
-        <div className="flex justify-between items-center mb-8 no-print">
-          <button onClick={onClose} className="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-all">
+        <div className="flex justify-center items-center gap-3 mb-8 no-print">
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-all font-cairo">
             إغلاق المعاينة
           </button>
-          <button onClick={handlePrint} className="px-8 py-3 rounded-xl bg-blue-600 text-white font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2">
+          <button onClick={handlePrint} className="px-8 py-2.5 rounded-xl bg-blue-600 text-white font-bold shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2 font-cairo">
             بدء الطباعة (Ctrl + P)
           </button>
         </div>
@@ -152,19 +153,45 @@ export default function PrintTemplate({ type, data, onClose }) {
 
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          .print-report, .print-report * { visibility: visible; }
-          .print-report { 
-            position: absolute; 
-            left: 0; 
-            top: 0; 
-            width: 100%; 
-            border: none !important;
+          body {
+            background: white !important;
+            margin: 0 !important;
             padding: 0 !important;
           }
-          .no-print { display: none !important; }
+          /* Hide all page content by default during print */
+          body * {
+            visibility: hidden !important;
+          }
+          /* Show only the print template container and its descendants */
+          .print-template-container,
+          .print-template-container * {
+            visibility: visible !important;
+          }
+          .print-template-container {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+          /* Hide the preview buttons completely */
+          .no-print,
+          .no-print * {
+            display: none !important;
+            visibility: hidden !important;
+          }
+          .print-report {
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            min-height: auto !important;
+          }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 }

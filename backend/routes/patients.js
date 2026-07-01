@@ -123,12 +123,12 @@ router.patch('/:id', authenticate, enforcePatientOwnership, async (req, res, nex
     const patient = await prisma.patient.update({
       where: { id },
       data:  {
-        weight:           weight ? parseFloat(weight) : undefined,
-        height:           height ? parseFloat(height) : undefined,
-        bloodType:        bloodType        || undefined,
-        allergies:        allergies        || undefined,
-        chronicDiseases:  chronicDiseases  || undefined,
-        emergencyContact: emergencyContact || undefined,
+        weight:           weight !== undefined ? (weight ? parseFloat(weight) : null) : undefined,
+        height:           height !== undefined ? (height ? parseFloat(height) : null) : undefined,
+        bloodType:        bloodType !== undefined ? (bloodType || null) : undefined,
+        allergies:        allergies !== undefined ? (allergies || null) : undefined,
+        chronicDiseases:  chronicDiseases !== undefined ? (chronicDiseases || null) : undefined,
+        emergencyContact: emergencyContact !== undefined ? (emergencyContact || null) : undefined,
         ...(phone && { user: { update: { phone } } }),
       },
       include: { user: { select: { name: true, email: true, phone: true } } },

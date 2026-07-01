@@ -31,28 +31,33 @@ function BookingsPage() {
   const [activeTab, setActiveTab] = useState('bookings'); // bookings, queue, billing
   const [printInv, setPrintInv] = useState(null);
   const [search, setSearch] = useState('');
+  const [dbDepts, setDbDepts] = useState([]);
+  const [dbDoctors, setDbDoctors] = useState([]);
   
   const fetchData = async () => {
     setLoading(true);
     try {
       const [aptRes, invRes] = await Promise.all([
-        api.get('/appointments'),
-        api.get('/finance/invoices')
+        api.get('/appointments', { params: { limit: 1000 } }),
+        api.get('/finance/invoices', { params: { limit: 1000 } })
       ]);
-      const formatted = aptRes.data.map(apt => ({
+      const appointmentsList = aptRes.data?.data || aptRes.data || [];
+      const formatted = appointmentsList.map(apt => ({
         id: apt.id,
         patientId: apt.patientId,
         patient: apt.patient?.user?.name || 'مجهول',
         phone: apt.patient?.user?.phone || 'غير مسجل',
         doctor: apt.doctor?.user?.name || 'غير محدد',
+        doctorId: apt.doctorId,
         dept: apt.doctor?.department?.name || 'عام',
+        deptId: apt.doctor?.departmentId,
         date: new Date(apt.date).toISOString().split('T')[0],
         time: apt.timeSlot || '00:00',
         type: apt.type,
         status: apt.status === 'SCHEDULED' ? 'pending' : apt.status === 'CANCELLED' ? 'rejected' : 'approved'
       }));
       setBookings(formatted);
-      setInvoices(invRes.data);
+      setInvoices(invRes.data?.data || invRes.data || []);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -62,6 +67,8 @@ function BookingsPage() {
 
   useEffect(() => {
     fetchData();
+    api.get('/admin/departments').then(res => setDbDepts(res.data || [])).catch(console.error);
+    api.get('/appointments/doctors').then(res => setDbDoctors(res.data || [])).catch(console.error);
   }, []);
   
   const [viewB, setViewB] = useState(null);
@@ -103,12 +110,17 @@ function BookingsPage() {
     }
   };
 
-  const handleReassignConfirm = () => {
-    if (!rDept || !rDoc) return addToast('يرجى اختيار القسم والطبيب', 'error');
-    setBookings(prev => prev.map(b => b.id === reassignB.id ? { ...b, dept: rDept, doctor: rDoc } : b));
-    addToast(`تم تحويل المريض ${reassignB.patient} إلى د. ${rDoc} ✓`, 'success');
-    setReassignB(null);
-    setViewB(null);
+  const handleReassignConfirm = async () => {
+    if (!rDoc) return addToast('يرجى اختيار الطبيب المعالج', 'error');
+    try {
+      await api.patch(`/appointments/${reassignB.id}`, { doctorId: parseInt(rDoc) });
+      addToast(`تم تحويل المريض بنجاح ✓`, 'success');
+      setReassignB(null);
+      setViewB(null);
+      fetchData();
+    } catch (err) {
+      addToast('فشل في تعديل الطبيب على السيرفر', 'error');
+    }
   };
 
   const reject = async (id) => {
@@ -139,7 +151,7 @@ function BookingsPage() {
       addToast('تم تحصيل الفاتورة وتحديث السجلات المالية ✓', 'success');
       fetchData();
     } catch (err) {
-      addToast('فشل في عملية التحصيل', 'error');
+      addToast(err.response?.data?.error || err.response?.data?.message || 'فشل في عملية التحصيل', 'error');
     }
   };
 
@@ -212,7 +224,7 @@ function BookingsPage() {
                         <button onClick={() => setViewB(b)} className="p-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors" title="عرض"><Eye className="w-5 h-5" /></button>
                         {b.status === 'pending' && (
                           <>
-                            <button onClick={() => { setRDept(b.dept); setRDoc(b.doctor); setReassignB(b); }} className="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors" title="تحويل القسم"><Edit className="w-5 h-5" /></button>
+                            <button onClick={() => { setRDept(b.deptId || ''); setRDoc(b.doctorId || ''); setReassignB(b); }} className="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors" title="تحويل القسم"><Edit className="w-5 h-5" /></button>
                             <button onClick={() => setApproveB(b)} className="p-2 rounded-xl bg-green-100 text-green-600 hover:bg-green-200 transition-colors" title="قبول"><CheckCircle className="w-5 h-5" /></button>
                             <button onClick={() => setRejectB(b)} className="p-2 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-colors" title="رفض"><XCircle className="w-5 h-5" /></button>
                           </>
@@ -276,7 +288,13 @@ function BookingsPage() {
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => handlePayInvoice(inv.id)} className="flex-1 py-2.5 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 transition-all">تحصيل المبلغ</button>
+                  {inv.status === 'PAID' ? (
+                    <div className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-500 font-bold text-sm text-center flex items-center justify-center gap-1 border border-slate-200">
+                      <CheckCircle className="w-4 h-4 text-green-500" /> تم التحصيل
+                    </div>
+                  ) : (
+                    <button onClick={() => handlePayInvoice(inv.id)} className="flex-1 py-2.5 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 transition-all">تحصيل المبلغ</button>
+                  )}
                   <button onClick={() => setPrintInv(inv)} className="p-2.5 rounded-xl border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all"><Printer className="w-5 h-5" /></button>
                 </div>
               </div>
@@ -365,15 +383,18 @@ function BookingsPage() {
           <div className="p-6 space-y-4">
             <div>
               <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">القسم الجديد</label>
-              <select value={rDept} onChange={e => setRDept(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 dark:bg-slate-800 outline-none font-cairo">
-                {DEPARTMENTS.map(d => <option key={d.id} value={d.name.split(' ')[1]}>{d.name}</option>)}
+              <select value={rDept} onChange={e => { setRDept(e.target.value); setRDoc(''); }} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 dark:bg-slate-800 outline-none font-cairo">
+                <option value="">اختر القسم...</option>
+                {dbDepts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">الطبيب المعالج</label>
-              <select value={rDoc} onChange={e => setRDoc(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 dark:bg-slate-800 outline-none font-cairo">
-                <option value="">اختر الطبيب</option>
-                {EGYPTIAN_DOCTORS.map(d => <option key={d.id} value={d.name}>{d.name} ({d.specialty})</option>)}
+              <select value={rDoc} onChange={e => setRDoc(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 dark:bg-slate-800 outline-none font-cairo" disabled={!rDept}>
+                <option value="">اختر الطبيب...</option>
+                {dbDoctors.filter(d => d.departmentId === parseInt(rDept)).map(d => (
+                  <option key={d.id} value={d.id}>{d.user?.name} ({d.specialty})</option>
+                ))}
               </select>
             </div>
             <button onClick={handleReassignConfirm} className="w-full mt-4 py-3 rounded-xl text-white font-bold font-cairo" style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}>حفظ التعديل</button>
@@ -419,32 +440,116 @@ function BookingsPage() {
 }
 
 function VitalsPage() {
-  const [saved, setSaved] = useState([
-    { patient: 'محمد أحمد السيد', bp: '125/82', hr: '78', temp: '37.2', spo2: '97%', chronic: 'ضغط دم', allergies: 'لا يوجد', time: '9:15 ص' },
-    { patient: 'نورا عبدالله الرشيدي', bp: '110/70', hr: '65', temp: '36.8', spo2: '99%', chronic: 'لا يوجد', allergies: 'بنسيلين', time: '9:45 ص' },
-  ]);
-  const [form, setForm] = useState({ patient: '', bp: '', hr: '', temp: '', spo2: '', chronic: '', allergies: '', notes: '' });
+  const [appointments, setAppointments] = useState([]);
+  const [saved, setSaved] = useState([]);
+  const [selectedApptId, setSelectedApptId] = useState('');
+  const [form, setForm] = useState({ bp: '', hr: '', temp: '', spo2: '', chronic: '', allergies: '', notes: '' });
+  const [loading, setLoading] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const handleSave = (e) => {
+  const loadData = useCallback(async () => {
+    try {
+      const res = await api.get('/appointments', { params: { limit: 1000 } });
+      const list = res.data?.data || res.data || [];
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // 1. Filter today's appointments that are WAITING or IN_PROGRESS (checked-in)
+      const checkedIn = list.filter(apt => {
+        const aptDateStr = new Date(apt.date).toISOString().split('T')[0];
+        return aptDateStr === todayStr && ['WAITING', 'IN_PROGRESS'].includes(apt.status);
+      });
+      setAppointments(checkedIn);
+
+      // 2. Filter today's appointments that have a triage record
+      const todayTriaged = list
+        .filter(apt => {
+          const aptDateStr = new Date(apt.date).toISOString().split('T')[0];
+          return aptDateStr === todayStr && apt.triage;
+        })
+        .map(apt => ({
+          patient: apt.patient?.user?.name || 'مريض مجهول',
+          bp: apt.triage.bloodPressure || '—',
+          hr: apt.triage.heartRate ? `${apt.triage.heartRate} bpm` : '—',
+          temp: apt.triage.temperature ? `${apt.triage.temperature} °C` : '—',
+          spo2: apt.triage.oxygenLevel ? `${apt.triage.oxygenLevel}%` : '—',
+          chronic: apt.patient?.chronicDiseases || 'لا يوجد',
+          allergies: apt.patient?.allergies || 'لا يوجد',
+          time: new Date(apt.triage.createdAt || apt.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+        }));
+      setSaved(todayTriaged);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.patient) return;
-    setSaved(prev => [...prev, { ...form, time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) }]);
-    setForm({ patient: '', bp: '', hr: '', temp: '', spo2: '', chronic: '', allergies: '', notes: '' });
-    addToast(`تم حفظ التقييم الطبي لـ ${form.patient} ✓`, 'success');
+    if (!selectedApptId) return addToast('يرجى اختيار مريض من القائمة', 'error');
+    setLoading(true);
+    try {
+      const appt = appointments.find(a => a.id === parseInt(selectedApptId));
+      if (!appt) return;
+
+      // 1. Save triage to backend
+      await api.post(`/appointments/${selectedApptId}/triage`, {
+        bloodPressure: form.bp,
+        heartRate: form.hr ? parseInt(form.hr) : undefined,
+        temperature: form.temp ? parseFloat(form.temp) : undefined,
+        oxygenLevel: form.spo2 ? parseInt(form.spo2) : undefined,
+        priorityLevel: appt.triage?.priorityLevel || 'عادية',
+        notes: form.notes
+      });
+
+      // 2. Update patient profile (chronic diseases and allergies)
+      if (appt.patientId) {
+        await api.patch(`/patients/${appt.patientId}`, {
+          chronicDiseases: form.chronic,
+          allergies: form.allergies
+        });
+      }
+
+      addToast(`تم حفظ التقييم الطبي لـ ${appt.patient?.user?.name} بنجاح ✓`, 'success');
+      setForm({ bp: '', hr: '', temp: '', spo2: '', chronic: '', allergies: '', notes: '' });
+      setSelectedApptId('');
+      loadData();
+    } catch (err) {
+      addToast('حدث خطأ أثناء حفظ البيانات الطبية', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="p-6 fade-in">
-      <div className="section-header"><div className="section-header-line" style={{ background: 'linear-gradient(180deg, #f59e0b, #d97706)' }} /><h3 className="text-xl font-bold">العلامات الحيوية والتاريخ المرضي</h3></div>
+      <div className="section-header"><div className="section-header-line" style={{ background: 'linear-gradient(180deg, #f59e0b, #d97706)' }} /><h3 className="text-xl font-bold">العلامات الحيوية والتاريخ المرضي للعيادات</h3></div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
           <h4 className="font-bold text-slate-900 mb-5">إدخال جديد</h4>
           <form onSubmit={handleSave} className="space-y-4">
             <div>
-              <label className="block text-slate-600 text-sm font-semibold mb-1">اسم المريض</label>
-              <input required value={form.patient} onChange={e => set('patient', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:bg-white focus:border-amber-400 outline-none font-cairo" placeholder="اسم المريض" />
+              <label className="block text-slate-600 text-sm font-semibold mb-1">اختر المريض (المسجلين اليوم)</label>
+              <select required value={selectedApptId} onChange={e => {
+                const apptId = e.target.value;
+                setSelectedApptId(apptId);
+                const appt = appointments.find(a => a.id === parseInt(apptId));
+                if (appt) {
+                  setForm(p => ({
+                    ...p,
+                    chronic: appt.patient?.chronicDiseases || '',
+                    allergies: appt.patient?.allergies || ''
+                  }));
+                }
+              }} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none focus:border-amber-400">
+                <option value="">اختر مريض...</option>
+                {appointments.map(a => (
+                  <option key={a.id} value={a.id}>{a.patient?.user?.name} — {a.doctor?.user?.name} ({a.doctor?.department?.name})</option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
@@ -461,37 +566,45 @@ function VitalsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div className="col-span-2">
-                <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">الأمراض المزمنة</label>
-                <input value={form.chronic} onChange={e => set('chronic', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 dark:bg-slate-800 outline-none focus:border-amber-400 font-cairo" placeholder="مثال: سكري، ضغط..." />
+                <label className="block text-slate-600 text-sm font-semibold mb-1">الأمراض المزمنة</label>
+                <input value={form.chronic} onChange={e => set('chronic', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" placeholder="مثال: سكري، ضغط..." />
               </div>
               <div className="col-span-2">
-                <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">الحساسية والأدوية الحالية</label>
-                <input value={form.allergies} onChange={e => set('allergies', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 dark:bg-slate-800 outline-none focus:border-amber-400 font-cairo" placeholder="مثال: حساسية بنسيلين..." />
+                <label className="block text-slate-600 text-sm font-semibold mb-1">الحساسية والأدوية الحالية</label>
+                <input value={form.allergies} onChange={e => set('allergies', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" placeholder="مثال: حساسية بنسيلين..." />
               </div>
             </div>
             <div>
-              <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">ملاحظات عامة</label>
-              <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 dark:bg-slate-800 h-20 resize-none font-cairo focus:border-amber-400 outline-none" />
+              <label className="block text-slate-600 text-sm font-semibold mb-1">ملاحظات عامة</label>
+              <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 h-20 resize-none font-cairo focus:border-amber-400 outline-none" />
             </div>
-            <button type="submit" className="w-full py-3 rounded-xl text-white font-bold font-cairo transition-all" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>حفظ التقييم الشامل</button>
+            <button type="submit" disabled={loading} className="w-full py-3 rounded-xl text-white font-bold font-cairo transition-all" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+              {loading ? 'جاري الحفظ...' : 'حفظ التقييم الشامل'}
+            </button>
           </form>
         </div>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <h4 className="font-bold text-slate-900 mb-4">آخر التسجيلات ({saved.length})</h4>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {saved.map((r, i) => (
+          <h4 className="font-bold text-slate-900 mb-4">آخر التسجيلات اليوم ({saved.length})</h4>
+          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+            {saved.length === 0 ? (
+              <div className="text-center py-16 text-slate-300">لا توجد تسجيلات علامات حيوية حتى الآن اليوم</div>
+            ) : saved.map((r, i) => (
               <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-xl bg-slate-50">
                 <div className="flex justify-between items-center mb-3">
                   <span className="font-medium text-slate-800">{r.patient}</span>
                   <span className="text-slate-400 text-xs">{r.time}</span>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-4 gap-2 mb-2">
                   {[{ l: 'BP', v: r.bp }, { l: 'HR', v: r.hr }, { l: 'Temp', v: r.temp }, { l: 'SpO₂', v: r.spo2 }].map((item, j) => (
                     <div key={j} className="text-center p-2 bg-white rounded-lg shadow-sm">
                       <div className="text-xs text-slate-400">{item.l}</div>
                       <div className="font-bold text-slate-800 text-sm">{item.v}</div>
                     </div>
                   ))}
+                </div>
+                <div className="text-xs text-slate-500 space-y-0.5 border-t border-slate-100 pt-2 mt-2">
+                  <div><strong>أمراض مزمنة:</strong> {r.chronic}</div>
+                  <div><strong>الحساسية:</strong> {r.allergies}</div>
                 </div>
               </motion.div>
             ))}
@@ -508,33 +621,41 @@ function WalkInPage() {
   const [form, setForm] = useState({ name: '', idNum: '', phone: '', dob: '', blood: 'A+', dept: '', complaint: '' });
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const [registered, setRegistered] = useState([]);
+  const [departments, setDepartments] = useState([]);
+
+  useEffect(() => {
+    api.get('/admin/departments').then(res => setDepartments(res.data || [])).catch(console.error);
+  }, []);
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    if (!form.dept) return addToast('يرجى اختيار القسم الطبي المطلوب', 'error');
     try {
       // 1. تسجيل المريض
       const patientRes = await api.post('/patients', {
         name: form.name,
-        nationalId: form.idNum,
-        phone: form.phone,
+        nationalId: form.idNum || undefined,
+        phone: form.phone || undefined,
         bloodType: form.blood,
-        gender: 'غير محدد'
+        dateOfBirth: form.dob || undefined,
+        gender: 'غير حدد'
       });
       
       // 2. حجز الموعد
       const aptRes = await api.post('/appointments', {
         patientId: patientRes.data.patient.id,
-        departmentName: form.dept, // نرسل اسم القسم بدلاً من طبيب وهمي
+        departmentId: parseInt(form.dept),
         date: new Date().toISOString(),
         type: 'كشف مباشر',
         timeSlot: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
       });
 
+      const selectedDeptObj = departments.find(d => d.id === parseInt(form.dept));
       const ticket = 'WK-' + aptRes.data.appointment.id;
-      setRegistered(prev => [...prev, { ...form, ticket, time: aptRes.data.appointment.timeSlot }]);
+      setRegistered(prev => [...prev, { ...form, deptName: selectedDeptObj?.name || 'عام', ticket, time: aptRes.data.appointment.timeSlot }]);
       
       setForm({ name: '', idNum: '', phone: '', dob: '', blood: 'A+', dept: '', complaint: '' });
-      addToast(`تم تسجيل המريض ${form.name} بنجاح ✓`, 'success');
+      addToast(`تم تسجيل المريض ${form.name} بنجاح ✓`, 'success');
     } catch (err) {
       addToast(err.response?.data?.error || 'حدث خطأ أثناء التسجيل', 'error');
     }
@@ -552,12 +673,16 @@ function WalkInPage() {
                 <input required value={form.name} onChange={e => set('name', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
               </div>
               <div>
-                <label className="block text-slate-600 text-sm font-semibold mb-1">رقم الهوية</label>
+                <label className="block text-slate-600 text-sm font-semibold mb-1">رقم الهوية / الرقم القومي</label>
                 <input value={form.idNum} onChange={e => set('idNum', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
               </div>
               <div>
                 <label className="block text-slate-600 text-sm font-semibold mb-1">رقم الهاتف</label>
                 <input value={form.phone} onChange={e => set('phone', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" placeholder="01xxxxxxxxx" />
+              </div>
+              <div>
+                <label className="block text-slate-600 text-sm font-semibold mb-1">تاريخ الميلاد</label>
+                <input type="date" value={form.dob} onChange={e => set('dob', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
               </div>
               <div>
                 <label className="block text-slate-600 text-sm font-semibold mb-1">فصيلة الدم</label>
@@ -569,7 +694,7 @@ function WalkInPage() {
                 <label className="block text-slate-600 text-sm font-semibold mb-1">القسم المطلوب</label>
                 <select required value={form.dept} onChange={e => set('dept', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none">
                   <option value="">اختر القسم</option>
-                  {['طوارئ', 'قلب', 'أعصاب', 'عظام', 'أطفال', 'باطنة', 'نساء وتوليد'].map(d => <option key={d}>{d}</option>)}
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
@@ -581,9 +706,9 @@ function WalkInPage() {
           </form>
         </div>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <h4 className="font-bold text-slate-900 mb-4">قائمة الانتظار ({registered.length})</h4>
+          <h4 className="font-bold text-slate-900 mb-4">قائمة الانتظار المسجلة ({registered.length})</h4>
           {registered.length === 0 ? (
-            <div className="text-center py-12 text-slate-300"><UserPlus className="w-12 h-12 mx-auto mb-3" /><p>لا يوجد مرضى في الانتظار</p></div>
+            <div className="text-center py-12 text-slate-300"><UserPlus className="w-12 h-12 mx-auto mb-3" /><p>لا يوجد مرضى مسجلون حالياً</p></div>
           ) : (
             <div className="space-y-3">
               {registered.map((r, i) => (
@@ -591,7 +716,7 @@ function WalkInPage() {
                   <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>{r.ticket}</div>
                   <div className="flex-1">
                     <p className="font-medium text-slate-800">{r.name}</p>
-                    <p className="text-slate-500 text-xs">{r.dept} — {r.complaint.slice(0, 30)}...</p>
+                    <p className="text-slate-500 text-xs">{r.deptName} — {r.complaint.slice(0, 30)}...</p>
                   </div>
                   <span className="text-slate-400 text-xs">{r.time}</span>
                 </motion.div>
@@ -609,8 +734,8 @@ function ReceptionHome() {
   const [bookings, setBookings] = useState([]);
   
   useEffect(() => {
-    api.get('/appointments')
-      .then(res => setBookings(res.data))
+    api.get('/appointments', { params: { limit: 1000 } })
+      .then(res => setBookings(res.data?.data || res.data || []))
       .catch(err => console.error(err));
   }, []);
   return (
@@ -620,14 +745,14 @@ function ReceptionHome() {
         <div className="relative">
           <p className="text-amber-100 text-sm mb-1">مرحباً،</p>
           <h2 className="text-white text-3xl font-black mb-2">نورا الخالدي</h2>
-          <p className="text-amber-100">{bookings.filter(b => b.status === 'pending').length} حجوزات بانتظار المراجعة اليوم</p>
+          <p className="text-amber-100">{bookings.filter(b => b.status === 'SCHEDULED').length} حجوزات بانتظار المراجعة اليوم</p>
         </div>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { title: 'حجوزات اليوم', value: `${bookings.length}`, icon: Calendar, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', trend: 'up', trendValue: '+3' },
-          { title: 'انتظار الموافقة', value: `${bookings.filter(b => b.status === 'pending').length}`, icon: Clock, gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)' },
-          { title: 'تمت الموافقة', value: `${bookings.filter(b => b.status === 'approved').length}`, icon: CheckCircle, gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)' },
+          { title: 'انتظار الموافقة', value: `${bookings.filter(b => b.status === 'SCHEDULED').length}`, icon: Clock, gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)' },
+          { title: 'تمت الموافقة', value: `${bookings.filter(b => b.status === 'WAITING' || b.status === 'IN_PROGRESS' || b.status === 'COMPLETED').length}`, icon: CheckCircle, gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)' },
           { title: 'مرضى مباشرون', value: '4', icon: UserPlus, gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' },
         ].map((s, i) => <StatCard key={i} {...s} index={i} />)}
       </div>

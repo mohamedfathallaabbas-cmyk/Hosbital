@@ -10,18 +10,6 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-const INSURANCE = {
-  company: 'شركة AXA للتأمين الصحي',
-  policyNum: 'AXA-2025-048832',
-  cardNum: 'MEM-9921-4455',
-  type: 'تأمين شامل',
-  start: '1 يناير 2025',
-  end: '31 ديسمبر 2025',
-  maxCoverage: '500,000 ج.م',
-  copay: '20%',
-  status: 'active',
-};
-
 const FLAG_STYLE = {
   high: 'bg-red-50 text-red-600 border border-red-200',
   abnormal: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -105,7 +93,7 @@ function VisitCard({ visit, index }) {
                   <Pill className="w-3.5 h-3.5" />الأدوية الموصوفة
                 </p>
                 <div className="space-y-2">
-                  {visit.medications.map((m, i) => (
+                  {visit.medications.length === 0 ? <p className="text-xs text-slate-400 italic">لا توجد أدوية موصوفة لهذه الزيارة</p> : visit.medications.map((m, i) => (
                     <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-100">
                       <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
                       <div className="flex-1">
@@ -122,7 +110,7 @@ function VisitCard({ visit, index }) {
                   <FlaskConical className="w-3.5 h-3.5" />نتائج التحاليل والأشعة
                 </p>
                 <div className="space-y-2">
-                  {visit.labs.map((lab, i) => (
+                  {visit.labs.length === 0 ? <p className="text-xs text-slate-400 italic">لا توجد تحاليل لهذه الزيارة</p> : visit.labs.map((lab, i) => (
                     <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
                       <div className="flex-1">
                         <p className="text-slate-700 text-sm font-medium">{lab.test}</p>
@@ -140,7 +128,7 @@ function VisitCard({ visit, index }) {
                   <p className="text-xs font-bold text-amber-600 mb-1 flex items-center gap-1.5">
                     <Stethoscope className="w-3.5 h-3.5" />ملاحظات الطبيب
                   </p>
-                  <p className="text-slate-700 text-sm">{visit.notes}</p>
+                  <p className="text-slate-700 text-sm">{visit.notes || 'لا توجد ملاحظات'}</p>
                 </div>
                 {visit.followUp && (
                   <div className="p-4 rounded-xl bg-teal-50 border border-teal-100">
@@ -166,7 +154,8 @@ export default function MedicalHistory() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
-  const [patientData, setPatientData] = useState({ weight: 75, height: 175, bloodType: 'A+' });
+  const [profile, setProfile] = useState(null);
+  const [insurance, setInsurance] = useState(null);
 
   // --- Files state ---
   const [files, setFiles] = useState([]);
@@ -262,20 +251,20 @@ export default function MedicalHistory() {
     if (user.patientId) {
       setLoading(true);
       Promise.all([
-        api.get(`/medical-records/patient/${user.patientId}`),
-        api.get(`/labs/orders?patientId=${user.patientId}`)
+        api.get(`/medical-records/patient/${user.patientId}`).catch(e => { console.error(e); return { data: [] }; }),
+        api.get(`/labs/orders/patient/${user.patientId}`).catch(e => { console.error(e); return { data: [] }; }),
+        api.get(`/patients/${user.patientId}`).catch(e => { console.error(e); return { data: null }; }),
+        api.get('/insurance/policies').catch(() => ({ data: [] }))
       ])
-        .then(([recRes, labRes]) => {
-          const recordsArray = recRes.data?.data || recRes.data || [];
-          setRecords(recordsArray);
+        .then(([recRes, labRes, patientRes, insuranceRes]) => {
+          setRecords(recRes.data?.data || recRes.data || []);
           setLabs(labRes.data?.data || labRes.data || []);
-          if (recordsArray[0]?.appointment?.patient) {
-            const p = recordsArray[0].appointment.patient;
-            setPatientData({ 
-              weight: p.weight || 75, 
-              height: p.height || 175, 
-              bloodType: p.bloodType || 'A+' 
-            });
+          setProfile(patientRes.data);
+          
+          const policies = insuranceRes.data || [];
+          const ownPolicy = policies.find(p => p.patientId === parseInt(user.patientId));
+          if (ownPolicy) {
+            setInsurance(ownPolicy);
           }
         })
         .catch(console.error)
@@ -285,10 +274,16 @@ export default function MedicalHistory() {
     }
   }, [user.patientId]);
 
+  const typeTranslation = {
+    CHECKUP: 'كشف',
+    FOLLOWUP: 'متابعة',
+    EMERGENCY: 'طوارئ',
+  };
+
   const VISITS = records.map(r => ({
     id: r.id,
     date: new Date(r.createdAt).toLocaleDateString('ar-EG'),
-    type: r.appointment?.type || 'كشف',
+    type: typeTranslation[r.appointment?.type] || r.appointment?.type || 'كشف',
     doctor: r.appointment?.doctor?.user?.name,
     specialty: r.appointment?.doctor?.specialty,
     diagnosis: r.diagnosis,
@@ -302,7 +297,7 @@ export default function MedicalHistory() {
       spo2: r.appointment?.triage?.oxygenLevel ? `${r.appointment.triage.oxygenLevel}%` : '—' 
     },
     medications: r.prescriptions?.[0]?.items?.map(i => ({
-      name: i.medicine?.name,
+      name: i.medicine?.name || i.medicineName,
       dose: i.dosage,
       freq: i.frequency,
       duration: i.duration
@@ -312,15 +307,18 @@ export default function MedicalHistory() {
     followUp: null
   }));
 
-  const PATIENT = patientData;
-  const BMI_VAL = +(PATIENT.weight / Math.pow(PATIENT.height / 100, 2)).toFixed(1);
-  const BMI_INFO = BMI_VAL < 18.5
-    ? { label: 'نقص الوزن', color: '#3b82f6', bg: 'bg-blue-50' }
-    : BMI_VAL < 25
-      ? { label: 'وزن طبيعي', color: '#14b8a6', bg: 'bg-teal-50' }
-      : BMI_VAL < 30
-        ? { label: 'وزن زائد', color: '#f59e0b', bg: 'bg-amber-50' }
-        : { label: 'سمنة', color: '#ef4444', bg: 'bg-red-50' };
+  const PATIENT = profile || {};
+  const hasVitals = PATIENT.weight && PATIENT.height;
+  const BMI_VAL = hasVitals ? +(PATIENT.weight / Math.pow(PATIENT.height / 100, 2)).toFixed(1) : 0;
+  const BMI_INFO = !hasVitals 
+    ? { label: 'غير محدد', color: '#94a3b8', bg: 'bg-slate-50' }
+    : BMI_VAL < 18.5
+      ? { label: 'نقص الوزن', color: '#3b82f6', bg: 'bg-blue-50' }
+      : BMI_VAL < 25
+        ? { label: 'وزن طبيعي', color: '#14b8a6', bg: 'bg-teal-50' }
+        : BMI_VAL < 30
+          ? { label: 'وزن زائد', color: '#f59e0b', bg: 'bg-amber-50' }
+          : { label: 'سمنة', color: '#ef4444', bg: 'bg-red-50' };
 
   const VITALS_TREND = VISITS.slice(0, 5).reverse().map(v => ({
     visit: v.date,
@@ -329,9 +327,41 @@ export default function MedicalHistory() {
     weight: PATIENT.weight
   }));
 
-  const CHRONIC_CONDITIONS = []; 
-  const ALLERGIES = []; 
-  const CURRENT_MEDS = VISITS[0]?.medications || [];
+  // Parse age from dateOfBirth
+  const getAge = (dobString) => {
+    if (!dobString) return 'غير محدد';
+    const birthDate = new Date(dobString);
+    const difference = Date.now() - birthDate.getTime();
+    const ageDate = new Date(difference);
+    return Math.abs(ageDate.getUTCFullYear() - 1970) + ' سنة';
+  };
+
+  const CHRONIC_CONDITIONS = PATIENT.chronicDiseases 
+    ? PATIENT.chronicDiseases.split(/[,\n،;]+/).map(name => name.trim()).filter(Boolean).map(name => ({ name, since: 'مسجل بالملف', controlled: true })) 
+    : [];
+
+  const ALLERGIES = PATIENT.allergies 
+    ? PATIENT.allergies.split(/[,\n،;]+/).map(name => name.trim()).filter(Boolean).map(name => ({ substance: name, reaction: 'تفاعل تحسسي', severity: 'متوسطة' })) 
+    : [];
+
+  // Aggregate unified current medications from all medical records/prescriptions
+  const CURRENT_MEDS = [];
+  records.forEach(r => {
+    r.prescriptions?.forEach(p => {
+      p.items?.forEach(i => {
+        const medName = i.medicine?.name || i.medicineName;
+        if (medName && !CURRENT_MEDS.some(m => m.name === medName)) {
+          CURRENT_MEDS.push({
+            name: medName,
+            dose: i.dosage,
+            freq: i.frequency,
+            for: r.diagnosis || 'متابعة',
+            since: new Date(r.createdAt).toLocaleDateString('ar-EG')
+          });
+        }
+      });
+    });
+  });
 
   const TABS = [
     { v: 'all', l: 'كل الزيارات', icon: FileText },
@@ -408,7 +438,7 @@ export default function MedicalHistory() {
                   <Activity className="w-3.5 h-3.5 text-blue-500" />تطور العلامات الحيوية عبر الزيارات
                 </p>
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={VITALS_TREND}>
+                  <LineChart data={VITALS_TREND.length > 0 ? VITALS_TREND : [{ visit: 'لا يوجد زيارات', bp: 120, hr: 80 }]}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="visit" tick={{ fontSize: 11, fontFamily: 'Cairo' }} />
                     <YAxis tick={{ fontSize: 10 }} />
@@ -438,8 +468,8 @@ export default function MedicalHistory() {
                         <Microscope className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-800">{l.testName}</h4>
-                        <p className="text-slate-400 text-xs">{new Date(l.createdAt).toLocaleDateString('ar-EG')}</p>
+                        <h4 className="font-bold text-slate-800">{l.test?.name || 'تحليل معملي'}</h4>
+                        <p className="text-slate-400 text-xs">{new Date(l.orderedAt).toLocaleDateString('ar-EG')}</p>
                       </div>
                     </div>
                     <span className={l.status === 'COMPLETED' ? 'text-green-600 bg-green-50 px-2 py-1 rounded-lg text-xs' : 'text-amber-600 bg-amber-50 px-2 py-1 rounded-lg text-xs'}>
@@ -586,10 +616,10 @@ export default function MedicalHistory() {
             <p className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wide">ملخص صحي</p>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: 'فصيلة الدم', value: 'A+', icon: Droplets, color: '#ef4444' },
-                { label: 'العمر', value: '35 سنة', icon: User, color: '#2563eb' },
-                { label: 'الوزن', value: `${PATIENT.weight} كجم`, icon: Scale, color: '#14b8a6' },
-                { label: 'الطول', value: `${PATIENT.height} سم`, icon: Activity, color: '#8b5cf6' },
+                { label: 'فصيلة الدم', value: PATIENT.bloodType || 'غير مسجل', icon: Droplets, color: '#ef4444' },
+                { label: 'العمر', value: getAge(PATIENT.dateOfBirth), icon: User, color: '#2563eb' },
+                { label: 'الوزن', value: PATIENT.weight ? `${PATIENT.weight} كجم` : 'غير مسجل', icon: Scale, color: '#14b8a6' },
+                { label: 'الطول', value: PATIENT.height ? `${PATIENT.height} سم` : 'غير مسجل', icon: Activity, color: '#8b5cf6' },
               ].map((item, i) => (
                 <div key={i} className="p-3 rounded-xl bg-slate-50 text-center">
                   <item.icon className="w-4 h-4 mx-auto mb-1" style={{ color: item.color }} />
@@ -604,20 +634,23 @@ export default function MedicalHistory() {
             <p className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-1.5">
               <Scale className="w-3.5 h-3.5" />مؤشر كتلة الجسم (BMI)
             </p>
-            <div className="text-center mb-3">
-              <span className="text-4xl font-black" style={{ color: BMI_INFO.color }}>{BMI_VAL}</span>
-              <span className="text-slate-400 text-sm mr-1">kg/m²</span>
-              <p className={`mt-1 inline-block px-3 py-1 rounded-full text-sm font-bold ${BMI_INFO.bg}`}
-                style={{ color: BMI_INFO.color }}>{BMI_INFO.label}</p>
-            </div>
-            {/* BMI scale bar */}
-            <div className="relative h-3 rounded-full overflow-hidden" style={{ background: 'linear-gradient(to left, #ef4444 0%, #f59e0b 35%, #14b8a6 55%, #3b82f6 100%)' }}>
-              <div className="absolute top-0 h-full w-1 bg-white rounded-full shadow"
-                style={{ right: `${Math.min(Math.max(((BMI_VAL - 10) / 30) * 100, 2), 98)}%` }} />
-            </div>
-            <div className="flex justify-between text-xs text-slate-400 mt-1">
-              <span>نقص &lt;18.5</span><span>طبيعي</span><span>زائد &gt;25</span><span>سمنة &gt;30</span>
-            </div>
+            {PATIENT.weight && PATIENT.height ? (
+              <>
+                <div className="text-center mb-3">
+                  <span className="text-4xl font-black" style={{ color: BMI_INFO.color }}>{BMI_VAL}</span>
+                  <span className="text-slate-400 text-sm mr-1">kg/m²</span>
+                  <p className={`mt-1 inline-block px-3 py-1 rounded-full text-sm font-bold ${BMI_INFO.bg}`}
+                    style={{ color: BMI_INFO.color }}>{BMI_INFO.label}</p>
+                </div>
+                <div className="relative h-3 rounded-full overflow-hidden" style={{ background: 'linear-gradient(to left, #ef4444 0%, #f59e0b 35%, #14b8a6 55%, #3b82f6 100%)' }}>
+                  <div className="absolute top-0 h-full w-1 bg-white rounded-full shadow"
+                    style={{ right: `${Math.min(Math.max(((BMI_VAL - 10) / 30) * 100, 2), 98)}%` }} />
+                </div>
+                <div className="flex justify-between text-xs text-slate-400 mt-1">
+                  <span>نقص &lt;18.5</span><span>طبيعي</span><span>زائد &gt;25</span><span>سمنة &gt;30</span>
+                </div>
+              </>
+            ) : <p className="text-sm text-slate-400 text-center py-4">الرجاء تسجيل الوزن والطول بالملف الشخصي لحساب BMI</p>}
           </div>
 
           {/* Current Medications */}
@@ -626,13 +659,13 @@ export default function MedicalHistory() {
               <Pill className="w-3.5 h-3.5 text-blue-400" />الأدوية الحالية الموحدة
             </p>
             <div className="space-y-2">
-              {CURRENT_MEDS.map((m, i) => (
+              {CURRENT_MEDS.length === 0 ? <p className="text-slate-300 text-sm text-center py-3">لا توجد أدوية حالية</p> : CURRENT_MEDS.map((m, i) => (
                 <div key={i} className="p-3 rounded-xl bg-blue-50 border border-blue-100">
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="font-bold text-slate-800 text-sm">{m.name}</span>
                     <span className="text-xs font-semibold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-lg">{m.dose}</span>
                   </div>
-                  <p className="text-slate-500 text-xs">{m.freq} · لـ {m.for}</p>
+                  <p className="text-slate-500 text-xs">{m.freq} · لـ {m.for || 'متابعة'}</p>
                   <p className="text-slate-400 text-xs mt-0.5">منذ {m.since}</p>
                 </div>
               ))}
@@ -645,27 +678,30 @@ export default function MedicalHistory() {
               <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-green-500" />التأمين الصحي
               </p>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-600 font-bold">● نشط</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${insurance ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
+                {insurance ? '● نشط' : '● لا يوجد'}
+              </span>
             </div>
-            <div className="p-3 rounded-xl mb-3" style={{ background: 'linear-gradient(135deg, #2563eb, #14b8a6)' }}>
-              <p className="text-white text-xs opacity-80 mb-0.5">بطاقة التأمين</p>
-              <p className="text-white font-black text-sm">{INSURANCE.company}</p>
-              <p className="text-white/70 text-xs mt-1 font-mono">{INSURANCE.cardNum}</p>
-            </div>
-            <div className="space-y-1.5">
-              {[
-                { l: 'رقم البوليصة', v: INSURANCE.policyNum },
-                { l: 'نوع التغطية', v: INSURANCE.type },
-                { l: 'الحد الأقصى', v: INSURANCE.maxCoverage },
-                { l: 'نسبة التحمّل', v: INSURANCE.copay },
-                { l: 'الصلاحية', v: `${INSURANCE.start} — ${INSURANCE.end}` },
-              ].map((f, i) => (
-                <div key={i} className="flex justify-between text-xs py-1 border-b border-slate-50 last:border-0">
-                  <span className="text-slate-400">{f.l}</span>
-                  <span className="font-semibold text-slate-700">{f.v}</span>
+            {insurance ? (
+              <>
+                <div className="p-3 rounded-xl mb-3" style={{ background: 'linear-gradient(135deg, #2563eb, #14b8a6)' }}>
+                  <p className="text-white text-xs opacity-80 mb-0.5">بطاقة التأمين</p>
+                  <p className="text-white font-black text-sm">{insurance.company?.name || 'شركة تأمين'}</p>
+                  <p className="text-white/70 text-xs mt-1 font-mono">{insurance.policyNumber}</p>
                 </div>
-              ))}
-            </div>
+                <div className="space-y-1.5">
+                  {[
+                    { l: 'نسبة التغطية', v: `${insurance.coveragePct}%` },
+                    { l: 'تاريخ الانتهاء', v: new Date(insurance.expiryDate).toLocaleDateString('ar-EG') },
+                  ].map((f, i) => (
+                    <div key={i} className="flex justify-between text-xs py-1 border-b border-slate-50 last:border-0">
+                      <span className="text-slate-400">{f.l}</span>
+                      <span className="font-semibold text-slate-700">{f.v}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : <p className="text-sm text-slate-400 text-center py-4">غير مشترك في أي بوليصة تأمين حالياً</p>}
           </div>
 
           {/* Chronic conditions */}
@@ -683,10 +719,8 @@ export default function MedicalHistory() {
                       <p className="font-semibold text-slate-800 text-sm">{c.name}</p>
                       <p className="text-slate-400 text-xs">منذ {c.since}</p>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-lg font-semibold ${
-                      c.controlled ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
-                    }`}>
-                      {c.controlled ? 'منضبط' : 'يحتاج متابعة'}
+                    <span className={`text-xs px-2 py-1 rounded-lg font-semibold bg-green-100 text-green-600`}>
+                      منضبط
                     </span>
                   </div>
                 ))}
@@ -707,9 +741,7 @@ export default function MedicalHistory() {
                   <div key={i} className="p-3 rounded-xl bg-amber-50 border border-amber-100">
                     <div className="flex justify-between mb-1">
                       <span className="font-bold text-slate-800 text-sm">{a.substance}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-lg font-semibold ${
-                        a.severity === 'شديدة' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
-                      }`}>{a.severity}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-lg font-semibold bg-amber-100 text-amber-600`}>{a.severity}</span>
                     </div>
                     <p className="text-slate-500 text-xs">{a.reaction}</p>
                   </div>
@@ -733,7 +765,7 @@ export default function MedicalHistory() {
                 </div>
                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all"
-                    style={{ width: `${(s.count / VISITS.length) * 100}%`, background: s.color }} />
+                    style={{ width: `${(s.count / (VISITS.length || 1)) * 100}%`, background: s.color }} />
                 </div>
               </div>
             ))}

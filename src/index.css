@@ -72,6 +72,8 @@
   
   .dark body { background-color: #020617 !important; color: #f8fafc !important; }
   .dark .bg-white { background-color: #0f172a !important; color: #f8fafc !important; border-color: #1e293b !important; }
+  .dark .bg-hospital-gradient-soft { background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%) !important; }
+  .dark .dept-card, .dark .doctor-card { background: #0f172a !important; border-color: #1e293b !important; }
   
   /* Text Contrast Fixes */
   .dark .text-slate-900, .dark .text-slate-800 { color: #ffffff !important; }

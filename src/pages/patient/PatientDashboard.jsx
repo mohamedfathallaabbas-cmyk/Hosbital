@@ -4,49 +4,49 @@ import { motion } from 'framer-motion';
 import api from '../../lib/api';
 import {
   User, Calendar, FileText, Heart, Activity, Clock,
-  Star, Pill, LayoutDashboard, Upload,
-  LogOut, HeartPulse, Search, CheckCircle,
+  Star, Pill, LayoutDashboard, LogOut, HeartPulse, Search, CheckCircle,
   Droplets, Menu, X, Eye, PlusCircle, Stethoscope, DollarSign
 } from 'lucide-react';
 import Topbar from '../../components/hospital/Topbar';
 import StatCard from '../../components/hospital/StatCard';
 import Modal from '../../components/hospital/Modal';
-import ConfirmDialog from '../../components/hospital/ConfirmDialog';
 import { ToastContainer } from '../../components/hospital/Toast';
 import { useToast } from '../../hooks/useToast';
-import { EGYPTIAN_DOCTORS } from '../../lib/egyptianData';
 import MedicalHistory from './MedicalHistory';
+
+const statusLabel = { SCHEDULED: 'قيد المراجعة', WAITING: 'في الانتظار', IN_PROGRESS: 'جارٍ الكشف', COMPLETED: 'مكتمل', CANCELLED: 'ملغى' };
+const statusBadge = { SCHEDULED: 'badge-info', WAITING: 'badge-warning', IN_PROGRESS: 'badge-purple', COMPLETED: 'badge-success', CANCELLED: 'badge-danger' };
+
+const getEffectiveStatus = (appt) => {
+  if (!appt || !appt.date) return 'SCHEDULED';
+  const apptDate = new Date(appt.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  apptDate.setHours(0, 0, 0, 0);
+  
+  if (apptDate < today) {
+    return appt.status === 'COMPLETED' ? 'COMPLETED' : 'CANCELLED';
+  }
+  return appt.status;
+};
 
 const sidebarLinks = [
   { icon: LayoutDashboard, label: 'لوحة التحكم', path: '/patient/dashboard' },
   { icon: Calendar, label: 'مواعيدي', path: '/patient/appointments' },
   { icon: FileText, label: 'السجل الطبي', path: '/patient/medical-history' },
-  { icon: Upload, label: 'رفع الملفات', path: '/patient/uploads' },
   { icon: Droplets, label: 'التبرع بالدم', path: '/patient/blood-donation' },
   { icon: User, label: 'الملف الشخصي', path: '/patient/profile' },
-];
-
-const appointments = [
-  { doctor: 'د. أحمد السيد', specialty: 'قلب وأوعية', date: 'الخميس 24 أبريل', time: '10:30 ص', status: 'confirmed', avatar: 'أ' },
-  { doctor: 'د. سارة العمري', specialty: 'أعصاب', date: 'الاثنين 28 أبريل', time: '2:00 م', status: 'pending', avatar: 'س' },
-];
-
-const medHistory = [
-  { date: '15 مارس 2025', diagnosis: 'التهاب رئوي', doctor: 'د. خالد الرحيمي', status: 'متعافٍ' },
-  { date: '5 يناير 2025', diagnosis: 'ضغط دم مرتفع', doctor: 'د. أحمد السيد', status: 'تحت المتابعة' },
-  { date: '20 أكتوبر 2024', diagnosis: 'كسر في اليد', doctor: 'د. عمر الحارثي', status: 'متعافٍ' },
 ];
 
 function DashboardHome() {
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
   const [appointments, setAppointments] = useState([]);
   const [medHistory, setMedHistory] = useState([]);
-
   const [labs, setLabs] = useState([]);
 
   useEffect(() => {
     if (user.patientId) {
-      api.get(`/appointments?patientId=${user.patientId}`)
+      api.get(`/appointments?patientId=${user.patientId}&limit=1000`)
         .then(res => setAppointments(res.data?.data || res.data || []))
         .catch(console.error);
         
@@ -70,7 +70,7 @@ function DashboardHome() {
         <div className="relative">
           <p className="text-blue-100 text-sm mb-1">أهلاً بك،</p>
           <h2 className="text-white text-3xl font-black mb-2">{user.name || 'أحمد محمد'}</h2>
-          <p className="text-blue-100">لديك {appointments.filter(a => a.status !== 'COMPLETED').length} مواعيد قادمة</p>
+          <p className="text-blue-100">لديك {appointments.filter(a => getEffectiveStatus(a) !== 'COMPLETED' && getEffectiveStatus(a) !== 'CANCELLED').length} مواعيد قادمة</p>
           <div className="flex flex-wrap gap-4 mt-6">
             <div className="flex items-center gap-2 bg-white/20 rounded-xl px-4 py-2">
               <Heart className="w-4 h-4 text-white" />
@@ -87,7 +87,7 @@ function DashboardHome() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { title: 'المواعيد القادمة', value: appointments.filter(a => a.status !== 'COMPLETED' && a.status !== 'CANCELLED').length.toString(), icon: Calendar, gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)' },
+          { title: 'المواعيد القادمة', value: appointments.filter(a => getEffectiveStatus(a) !== 'COMPLETED' && getEffectiveStatus(a) !== 'CANCELLED').length.toString(), icon: Calendar, gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)' },
           { title: 'الزيارات الكلية', value: medHistory.length.toString(), icon: Activity, gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)' },
           { title: 'الأدوية الموصوفة', value: medHistory.reduce((acc, curr) => acc + (curr.prescriptions?.length || 0), 0).toString(), icon: Pill, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)' },
           { title: 'نتائج التحاليل', value: labs.filter(l => l.status === 'COMPLETED').length.toString(), icon: FileText, gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' },
@@ -101,7 +101,7 @@ function DashboardHome() {
           <h3 className="text-xl font-bold text-slate-900">المواعيد القادمة</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {appointments.length === 0 ? <p className="text-slate-500">لا توجد مواعيد حالية</p> : appointments.slice(0,2).map((appt, i) => (
+          {appointments.filter(a => getEffectiveStatus(a) !== 'COMPLETED' && getEffectiveStatus(a) !== 'CANCELLED').length === 0 ? <p className="text-slate-500">لا توجد مواعيد حالية</p> : appointments.filter(a => getEffectiveStatus(a) !== 'COMPLETED' && getEffectiveStatus(a) !== 'CANCELLED').slice(0,2).map((appt, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
               className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all">
@@ -111,11 +111,11 @@ function DashboardHome() {
                   {appt.doctor?.user?.name?.charAt(3) || 'د'}
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-bold text-slate-900">{appt.doctor?.user?.name}</h4>
+                  <h4 className="font-bold text-slate-900">{appt.doctor?.user?.name || 'أي طبيب متاح'}</h4>
                   <p className="text-slate-500 text-sm">{appt.doctor?.department?.name || 'طبيب عام'}</p>
                 </div>
-                <span className={appt.status === 'SCHEDULED' ? 'badge-info' : appt.status === 'WAITING' ? 'badge-warning' : 'badge-success'}>
-                  {appt.status}
+                <span className={statusBadge[getEffectiveStatus(appt)] || 'badge-info'}>
+                  {statusLabel[getEffectiveStatus(appt)] || getEffectiveStatus(appt)}
                 </span>
               </div>
               <div className="flex items-center gap-4 mt-4 pt-4 border-t border-slate-100">
@@ -154,7 +154,7 @@ function DashboardHome() {
                 <tr key={i}>
                   <td className="text-slate-500 text-sm">{new Date(h.createdAt).toLocaleDateString('ar-EG')}</td>
                   <td className="font-medium text-slate-800">{h.diagnosis}</td>
-                  <td className="text-slate-600">{h.appointment?.doctor?.user?.name}</td>
+                  <td className="text-slate-600">{h.appointment?.doctor?.user?.name || '—'}</td>
                   <td>
                     <span className="badge-success">مكتمل</span>
                   </td>
@@ -173,7 +173,6 @@ function AppointmentsPage() {
   const [filter, setFilter] = useState('all');
   const [bookOpen, setBookOpen] = useState(false);
   const [departments, setDepartments] = useState([]);
-  const [doctors, setDoctors] = useState([]);
   const [bookForm, setBookForm] = useState({ departmentId: '', doctorId: '', date: '', timeSlot: '', type: 'CHECKUP' });
   const [loading, setLoading] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
@@ -186,18 +185,8 @@ function AppointmentsPage() {
   }, []);
 
   const fetchAppts = () => {
-    api.get('/appointments').then(r => setAllAppts(r.data?.data || r.data || [])).catch(console.error);
+    api.get('/appointments', { params: { limit: 1000 } }).then(r => setAllAppts(r.data?.data || r.data || [])).catch(console.error);
   };
-
-  // عند اختيار القسم — جلب الأطباء التابعين له
-  useEffect(() => {
-    if (bookForm.departmentId) {
-      api.get('/admin/users').then(r => {
-        const deptDoctors = r.data.filter(u => u.role === 'DOCTOR' && u.doctorProfile?.department?.name);
-        setDoctors(deptDoctors);
-      }).catch(console.error);
-    }
-  }, [bookForm.departmentId]);
 
   const handleBook = async (e) => {
     e.preventDefault();
@@ -205,7 +194,7 @@ function AppointmentsPage() {
     try {
       await api.post('/appointments', {
         departmentId: bookForm.departmentId || undefined,
-        doctorId: bookForm.doctorId || undefined,
+        doctorId: undefined, // Always set doctor selection to undefined/null
         date: bookForm.date,
         timeSlot: bookForm.timeSlot,
         type: bookForm.type,
@@ -221,10 +210,7 @@ function AppointmentsPage() {
     }
   };
 
-  const statusLabel = { SCHEDULED: 'قيد المراجعة', WAITING: 'في الانتظار', IN_PROGRESS: 'جارٍ الكشف', COMPLETED: 'مكتمل', CANCELLED: 'ملغى' };
-  const statusBadge = { SCHEDULED: 'badge-info', WAITING: 'badge-warning', IN_PROGRESS: 'badge-warning', COMPLETED: 'badge-success', CANCELLED: 'badge-danger' };
-
-  const filtered = filter === 'all' ? allAppts : allAppts.filter(a => a.status === filter);
+  const filtered = filter === 'all' ? allAppts : allAppts.filter(a => getEffectiveStatus(a) === filter);
 
   const timeSlots = ['08:00 ص', '09:00 ص', '10:00 ص', '11:00 ص', '12:00 م', '01:00 م', '02:00 م', '03:00 م', '04:00 م'];
   const apptTypes = [{ v: 'CHECKUP', l: 'كشف عام' }, { v: 'FOLLOWUP', l: 'متابعة' }, { v: 'EMERGENCY', l: 'طارئ' }];
@@ -273,11 +259,11 @@ function AppointmentsPage() {
                   {appt.doctor?.user?.name?.charAt(3) || 'د'}
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-900">{appt.doctor?.user?.name}</h4>
+                  <h4 className="font-bold text-slate-900">{appt.doctor?.user?.name || 'أي طبيب متاح'}</h4>
                   <p className="text-slate-500 text-sm">{appt.doctor?.department?.name || 'طبيب عام'}</p>
                 </div>
               </div>
-              <span className={statusBadge[appt.status] || 'badge-info'}>{statusLabel[appt.status] || appt.status}</span>
+              <span className={statusBadge[getEffectiveStatus(appt)] || 'badge-info'}>{statusLabel[getEffectiveStatus(appt)] || getEffectiveStatus(appt)}</span>
             </div>
             <div className="flex items-center gap-4 mt-4 pt-4 border-t border-slate-100">
               <span className="flex items-center gap-1.5 text-slate-500 text-sm"><Calendar className="w-4 h-4" />{new Date(appt.date).toLocaleDateString('ar-EG')}</span>
@@ -297,21 +283,10 @@ function AppointmentsPage() {
 
           <div>
             <label className="block text-slate-600 text-sm font-semibold mb-1">القسم الطبي</label>
-            <select required value={bookForm.departmentId} onChange={e => setBookForm(p => ({ ...p, departmentId: e.target.value, doctorId: '' }))}
+            <select required value={bookForm.departmentId} onChange={e => setBookForm(p => ({ ...p, departmentId: e.target.value }))}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-blue-400 font-cairo">
               <option value="">اختر القسم...</option>
               {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-slate-600 text-sm font-semibold mb-1">الطبيب (اختياري)</label>
-            <select value={bookForm.doctorId} onChange={e => setBookForm(p => ({ ...p, doctorId: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-blue-400 font-cairo">
-              <option value="">أي طبيب متاح</option>
-              {doctors.filter(d => d.doctorProfile).map(d => (
-                <option key={d.id} value={d.doctorProfile?.id}>{d.name} — {d.doctorProfile?.specialty}</option>
-              ))}
             </select>
           </div>
 
@@ -354,8 +329,6 @@ function AppointmentsPage() {
     </div>
   );
 }
-
-
 
 function BloodDonation() {
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
@@ -459,24 +432,6 @@ function ProfilePage() {
       </div>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
-  );
-}
-
-function UploadsPage() {
-  const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
-  const [files, setFiles] = useState([]);
-  const [preview, setPreview] = useState(null);
-  const { toasts, addToast, removeToast } = useToast();
-  const load = () => { if (!user.patientId) return; api.get('/medical-records/radiology', { params: { patientId: user.patientId } }).then(res => setFiles(res.data?.data || res.data || [])).catch(console.error); };
-  useEffect(() => { load(); }, [user.patientId]);
-  const toDataUrl = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
-  const handleFileChange = async (e) => {
-    const selected = Array.from(e.target.files);
-    try { for (const file of selected) { const fileUrl = await toDataUrl(file); await api.post('/medical-records/radiology', { patientId: user.patientId, type: file.type?.includes('pdf') ? 'PDF' : 'Medical Upload', description: file.name, fileUrl }); } addToast('تم رفع الملفات وربطها بالباك إند', 'success'); await load(); } catch (err) { addToast(err.response?.data?.error || 'فشل رفع الملفات', 'error'); }
-    e.target.value = '';
-  };
-  return (
-    <div className="p-6 fade-in"><div className="section-header"><div className="section-header-line" /><h3 className="text-xl font-bold">رفع الملفات الطبية</h3></div><div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><div><label className="block bg-white rounded-2xl p-8 text-center border-2 border-dashed border-slate-200 shadow-sm cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"><Upload className="w-12 h-12 text-slate-300 mx-auto mb-4" /><h4 className="text-lg font-bold text-slate-700 mb-2">ارفع ملفاتك الطبية</h4><p className="text-slate-400 text-sm mb-4">سيتم حفظ الملف في سجلات الأشعة/الملفات الطبية بالباك إند</p><span className="inline-flex items-center gap-2 btn-primary-hospital text-sm"><Upload className="w-4 h-4" />اختر ملفا</span><input type="file" multiple accept="image/*,.pdf" className="hidden" onChange={handleFileChange} /></label><p className="text-slate-400 text-xs text-center mt-3">يدعم: PDF، JPG، PNG، JPEG</p></div><div><h4 className="font-bold text-slate-900 mb-4">الملفات المحفوظة ({files.length})</h4>{files.length === 0 ? <div className="text-center py-12 text-slate-300"><FileText className="w-12 h-12 mx-auto mb-3" /><p>لا توجد ملفات مرفوعة بعد</p></div> : <div className="space-y-3">{files.map((f) => <motion.div key={f.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-100 shadow-sm"><div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0"><FileText className="w-5 h-5 text-blue-500" /></div><div className="flex-1 min-w-0"><p className="font-medium text-slate-800 text-sm truncate">{f.description || f.type}</p><p className="text-slate-400 text-xs">{f.type} - {new Date(f.uploadedAt).toLocaleDateString('ar-EG')}</p></div>{f.fileUrl?.startsWith('data:image') && <button onClick={() => setPreview(f.fileUrl)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"><Eye className="w-4 h-4" /></button>}</motion.div>)}</div>}</div></div>{preview && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4" onClick={() => setPreview(null)}><img src={preview} alt="preview" className="max-w-full max-h-full rounded-2xl shadow-2xl" /></div>}<ToastContainer toasts={toasts} removeToast={removeToast} /></div>
   );
 }
 
@@ -593,7 +548,6 @@ export default function PatientDashboard() {
             <Route path="profile" element={<ProfilePage />} />
             <Route path="blood-donation" element={<BloodDonation />} />
             <Route path="medical-history" element={<MedicalHistory />} />
-            <Route path="uploads" element={<UploadsPage />} />
           </Routes>
         </div>
       </main>

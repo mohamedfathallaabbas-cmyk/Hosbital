@@ -19,7 +19,7 @@ const INIT_POSTS = [
   { id: 1, title: 'كيف تحافظ على صحة قلبك في 10 خطوات', category: 'صحة القلب', author: 'د. أحمد السيد', date: '2026-04-15', status: 'published', img: 'https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=400&h=200&fit=crop', content: 'محتوى المقال...' },
   { id: 2, title: 'أهمية الفحص الدوري المبكر للكشف عن السرطان', category: 'الوقاية', author: 'د. سارة العمري', date: '2026-04-12', status: 'published', img: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=200&fit=crop', content: 'محتوى المقال...' },
   { id: 3, title: 'التغذية السليمة لمرضى السكري: دليل شامل', category: 'تغذية', author: 'د. فاطمة الزهراء', date: '2026-04-10', status: 'draft', img: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400&h=200&fit=crop', content: 'محتوى المقال...' },
-  { id: 4, title: 'تمارين يومية لتقوية العظام والمفاصل', category: 'رياضة وصحة', author: 'د. محمد الحارثي', date: '2026-04-08', status: 'published', img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=200&fit=crop', content: 'محتوى المقال...' },
+  { id: 4, title: 'تمارين يومية لتقوية العظام والمفاصل', category: 'رياضة وصحة', author: 'د. محمد الحارثي', date: '2026-04-08', status: 'published', img: '/hijab_exercise.png', content: 'محتوى المقال...' },
 ];
 
 const CATEGORIES = ['صحة القلب', 'الوقاية', 'تغذية', 'رياضة وصحة', 'الصحة النفسية', 'نمط الحياة', 'أمراض مزمنة', 'طب الأطفال'];

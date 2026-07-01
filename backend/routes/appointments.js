@@ -108,6 +108,19 @@ router.get('/availability', authenticate, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /doctors ──────────────────────────────────────────────────────────────
+router.get('/doctors', authenticate, async (req, res, next) => {
+  try {
+    const doctors = await prisma.doctor.findMany({
+      include: {
+        user: { select: { name: true } },
+        department: true,
+      },
+    });
+    res.json(doctors);
+  } catch (err) { next(err); }
+});
+
 // ── GET /admission/:admissionId/followups ─────────────────────────────────────
 router.get('/admission/:admissionId/followups', authenticate, async (req, res, next) => {
   try {
@@ -162,8 +175,13 @@ router.post('/', authenticate, requirePermission(PERMISSIONS.CREATE_APPOINTMENT)
 
     // Resolve doctor from department if not provided
     if (!finalDoctorId && departmentId) {
-      const doctor = await prisma.doctor.findFirst({ where: { departmentId: parseInt(departmentId) } });
-      if (doctor) finalDoctorId = doctor.id;
+      const doctorsInDept = await prisma.doctor.findMany({ where: { departmentId: parseInt(departmentId) } });
+      if (doctorsInDept.length > 0) {
+        const randDoc = doctorsInDept[Math.floor(Math.random() * doctorsInDept.length)];
+        finalDoctorId = randDoc.id;
+      } else {
+        return next(new ValidationError('لا يوجد أطباء متاحين في هذا القسم حالياً'));
+      }
     }
     if (!finalDoctorId) {
       const anyDoctor = await prisma.doctor.findFirst();
@@ -306,6 +324,29 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     });
 
     res.json({ message: 'تم إلغاء الموعد' });
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /:id ────────────────────────────────────────────────────────────────
+router.patch('/:id', authenticate, async (req, res, next) => {
+  const { doctorId, date, timeSlot, type, status } = req.body;
+  try {
+    const data = {};
+    if (doctorId) data.doctorId = parseInt(doctorId);
+    if (date) data.date = new Date(date);
+    if (timeSlot !== undefined) data.timeSlot = timeSlot;
+    if (type) data.type = type;
+    if (status) data.status = status;
+
+    const updated = await prisma.appointment.update({
+      where: { id: parseInt(req.params.id) },
+      data,
+      include: {
+        patient: { include: { user: { select: { name: true, phone: true } } } },
+        doctor:  { include: { user: { select: { name: true } }, department: true } },
+      },
+    });
+    res.json(updated);
   } catch (err) { next(err); }
 });
 

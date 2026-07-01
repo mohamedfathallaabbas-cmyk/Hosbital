@@ -6,7 +6,7 @@ const blogs = [
   { title: 'كيف تحافظ على صحة قلبك في 10 خطوات يومية', category: 'صحة القلب', date: '15 أبريل 2025', img: 'https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=400&h=250&fit=crop', readTime: '5 دقائق' },
   { title: 'أهمية الفحص الدوري المبكر للكشف عن السرطان', category: 'الوقاية', date: '12 أبريل 2025', img: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=250&fit=crop', readTime: '7 دقائق' },
   { title: 'التغذية السليمة لمرضى السكري: دليل شامل', category: 'تغذية', date: '10 أبريل 2025', img: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400&h=250&fit=crop', readTime: '8 دقائق' },
-  { title: 'تمارين يومية لتقوية العظام والمفاصل', category: 'رياضة وصحة', date: '8 أبريل 2025', img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=250&fit=crop', readTime: '4 دقائق' },
+  { title: 'تمارين يومية لتقوية العظام والمفاصل', category: 'رياضة وصحة', date: '8 أبريل 2025', img: '/hijab_exercise.png', readTime: '4 دقائق' },
   { title: 'الصحة النفسية: كيف تتعامل مع ضغوط الحياة', category: 'الصحة النفسية', date: '5 أبريل 2025', img: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&h=250&fit=crop', readTime: '6 دقائق' },
   { title: 'أسرار النوم الصحي والعميق', category: 'نمط الحياة', date: '2 أبريل 2025', img: 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=400&h=250&fit=crop', readTime: '5 دقائق' },
   { title: 'مرض الضغط: الأسباب والعلاج والوقاية', category: 'أمراض مزمنة', date: '30 مارس 2025', img: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=400&h=250&fit=crop', readTime: '9 دقائق' },

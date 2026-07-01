@@ -6,26 +6,26 @@ import {
   Activity, Users, Stethoscope, Calendar, Award, Clock,
   Shield, Zap, CheckCircle, ArrowLeft, Menu, X,
   Microscope, Brain, Bone, Baby, HeartPulse, Building2, Layers,
-  UserPlus, AlertTriangle, Eye, EyeOff, ChevronDown, Eye as EyeIcon
+  UserPlus, AlertTriangle, Eye, EyeOff, ChevronDown, Eye as EyeIcon, Sun, Moon
 } from 'lucide-react';
 import BlogScroll from '../components/hospital/BlogScroll';
 import BookingSection from '../components/hospital/BookingSection';
 import api from '../lib/api';
 
 const departments = [
-  { icon: Heart, name: 'قسم القلب', desc: 'رعاية متكاملة لأمراض القلب والأوعية الدموية', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-  { icon: Brain, name: 'الأعصاب', desc: 'تشخيص وعلاج أمراض الجهاز العصبي', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-  { icon: Bone, name: 'العظام والمفاصل', desc: 'جراحة العظام وعلاج الإصابات', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-  { icon: Eye, name: 'طب العيون', desc: 'فحص وعلاج أمراض العيون والبصريات', color: '#14b8a6', bg: 'rgba(20,184,166,0.1)' },
+  { icon: Heart, name: 'أمراض القلب', desc: 'رعاية متكاملة لأمراض القلب والأوعية الدموية', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+  { icon: Layers, name: 'الباطنة العامة', desc: 'تشخيص وعلاج الأمراض الباطنية والجهاز الهضمي', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
   { icon: Baby, name: 'طب الأطفال', desc: 'رعاية شاملة لصحة الأطفال والمواليد', color: '#ec4899', bg: 'rgba(236,72,153,0.1)' },
-  { icon: Microscope, name: 'المختبرات', desc: 'تحاليل دقيقة بأحدث الأجهزة التشخيصية', color: '#2563eb', bg: 'rgba(37,99,235,0.1)' },
+  { icon: Bone, name: 'جراحة العظام', desc: 'جراحة العظام وعلاج الكسور والإصابات الرياضية', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+  { icon: Eye, name: 'طب العيون', desc: 'فحص وعلاج أمراض العيون والبصريات', color: '#14b8a6', bg: 'rgba(20,184,166,0.1)' },
+  { icon: Brain, name: 'المخ والأعصاب', desc: 'تشخيص وعلاج أمراض الجهاز العصبي والصرع', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
 ];
 
 const doctors = [
   { name: 'د. أحمد السيد', specialty: 'استشاري قلب وأوعية دموية', rating: 4.9, patients: 1250, img: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=300&h=300&fit=crop&crop=face' },
-  { name: 'د. سارة العمري', specialty: 'استشارية أعصاب', rating: 4.8, patients: 980, img: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=300&h=300&fit=crop&crop=face' },
+  { name: 'د. سارة العمري', specialty: 'استشارية أعصاب', rating: 4.8, patients: 980, img: '/doctor_hijab_sara.png' },
   { name: 'د. محمد الحارثي', specialty: 'استشاري جراحة عظام', rating: 4.9, patients: 1450, img: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=300&h=300&fit=crop&crop=face' },
-  { name: 'د. فاطمة الزهراء', specialty: 'استشارية طب أطفال', rating: 5.0, patients: 2100, img: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=300&h=300&fit=crop&crop=face' },
+  { name: 'د. فاطمة الزهراء', specialty: 'استشارية طب أطفال', rating: 5.0, patients: 2100, img: '/doctor_hijab_fatima.png' },
 ];
 
 const reviews = [
@@ -38,7 +38,7 @@ const blogs = [
   { title: 'كيف تحافظ على صحة قلبك في 10 خطوات', category: 'صحة القلب', date: '15 أبريل 2025', img: 'https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=400&h=250&fit=crop', readTime: '5 دقائق' },
   { title: 'أهمية الفحص الدوري المبكر للكشف عن السرطان', category: 'الوقاية', date: '12 أبريل 2025', img: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=250&fit=crop', readTime: '7 دقائق' },
   { title: 'التغذية السليمة لمرضى السكري: دليل شامل', category: 'تغذية', date: '10 أبريل 2025', img: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400&h=250&fit=crop', readTime: '8 دقائق' },
-  { title: 'تمارين يومية لتقوية العظام والمفاصل', category: 'رياضة وصحة', date: '8 أبريل 2025', img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=250&fit=crop', readTime: '4 دقائق' },
+  { title: 'تمارين يومية لتقوية العظام والمفاصل', category: 'رياضة وصحة', date: '8 أبريل 2025', img: '/hijab_exercise.png', readTime: '4 دقائق' },
   { title: 'الصحة النفسية: كيف تتعامل مع الضغوط اليومية', category: 'الصحة النفسية', date: '5 أبريل 2025', img: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&h=250&fit=crop', readTime: '6 دقائق' },
   { title: 'نوم صحي: أسرار النوم المريح والعميق', category: 'نمط الحياة', date: '2 أبريل 2025', img: 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=400&h=250&fit=crop', readTime: '5 دقائق' },
 ];
@@ -51,10 +51,21 @@ const stats = [
 ];
 
 export default function Landing() {
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
   const [mobileMenu, setMobileMenu] = useState(false);
   const [scrolled, setScrolled]     = useState(false);
   const [activeReview, setActiveReview] = useState(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('darkMode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('darkMode', 'false');
+    }
+  }, [darkMode]);
 
   // ── Sign Up Modal State ───────────────────────────────────────────────────
   const [showSignUp, setShowSignUp] = useState(false);
@@ -140,6 +151,11 @@ export default function Landing() {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <button onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all flex items-center justify-center"
+              title={darkMode ? 'الوضع المضيء' : 'الوضع الداكن'}>
+              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
             <Link to="/role-select" className="text-white/90 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/10">
               تسجيل الدخول
             </Link>
@@ -164,6 +180,13 @@ export default function Landing() {
               {['الرئيسية', 'الأقسام', 'أطباؤنا', 'المدونة', 'تواصل معنا'].map((item, i) => (
                 <a key={i} href="#" className="text-white/90 py-2 text-sm font-medium border-b border-white/10">{item}</a>
               ))}
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <span className="text-white/90 text-sm font-medium font-cairo">مظهر التطبيق</span>
+                <button onClick={() => setDarkMode(!darkMode)}
+                  className="p-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all flex items-center gap-2 text-xs font-semibold font-cairo">
+                  {darkMode ? <><Sun className="w-4 h-4" /> الوضع المضيء</> : <><Moon className="w-4 h-4" /> الوضع الداكن</>}
+                </button>
+              </div>
               <div className="flex gap-3 pt-2 flex-wrap">
                 <Link to="/role-select" className="flex-1 text-center text-white border border-white/30 py-2 rounded-xl text-sm">دخول</Link>
                 <button onClick={() => { setMobileMenu(false); setShowSignUp(true); }}
@@ -181,7 +204,7 @@ export default function Landing() {
       <section id="home" className="relative min-h-screen flex items-center overflow-hidden">
         <div className="absolute inset-0 bg-dark-gradient" />
         <div className="absolute inset-0 opacity-20"
-          style={{ backgroundImage: `url(https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=1920&fit=crop)`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+          style={{ backgroundImage: `url(https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?w=1920&q=80&fit=crop)`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/50 to-slate-900" />
 
         {/* Animated blobs */}
@@ -235,7 +258,7 @@ export default function Landing() {
           <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8, delay: 0.2 }}
             className="hidden lg:block relative">
             <div className="relative rounded-3xl overflow-hidden" style={{ boxShadow: '0 30px 80px rgba(37,99,235,0.3)' }}>
-              <img src="https://images.unsplash.com/photo-1551601651-2a8555f1a136?w=600&h=700&fit=crop" alt="Medical Team" className="w-full object-cover" />
+              <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=600&h=700&fit=crop" alt="Medical Team" className="w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
             </div>
             {/* Float cards */}

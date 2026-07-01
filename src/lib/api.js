@@ -4,7 +4,7 @@
  */
 import axios from 'axios';
 const api = axios.create({
-  baseURL: 'https://backend-silver-pond-9900.fly.dev/api',
+  baseURL: 'http://localhost:5000/api',
 });
 
 // إضافة التوكن تلقائياً لكل request من hospitalUser في sessionStorage

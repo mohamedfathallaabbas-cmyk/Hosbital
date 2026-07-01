@@ -4,7 +4,7 @@ import {
   Activity, AlertCircle, Bed, Bell, CheckCircle, Clock,
   HeartPulse, LogOut, Pill, Plus, ShieldAlert, Stethoscope,
   UserRound, PlayCircle, RefreshCw, X, ChevronRight,
-  Thermometer, Droplets, Wind, Scale
+  Thermometer, Droplets, Wind, Scale, FileText
 } from 'lucide-react';
 import Topbar from '../../components/hospital/Topbar';
 import Modal from '../../components/hospital/Modal';
@@ -22,8 +22,11 @@ export default function NursingDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [modalOpen, setModalOpen] = useState('');
-  const [noteForm, setNoteForm] = useState({ vitals: '', content: '' });
+  const [noteForm, setNoteForm] = useState({ bp: '', hr: '', temp: '', spo2: '', content: '' });
   const [saving, setSaving] = useState(false);
+  const [historyPatient, setHistoryPatient] = useState(null);
+  const [historyNotes, setHistoryNotes] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchAdmissions = async () => {
     setLoading(true);
@@ -48,14 +51,15 @@ export default function NursingDashboard() {
     if (!selectedPatient) return;
     setSaving(true);
     try {
+      const vitalsStr = `BP: ${noteForm.bp || '-'}, HR: ${noteForm.hr || '-'}, Temp: ${noteForm.temp || '-'}°C, SpO2: ${noteForm.spo2 || '-'}%`;
       await api.post('/nursing/notes', {
         admissionId: selectedPatient.id,
-        vitalSigns: noteForm.vitals || null,
+        vitalSigns: vitalsStr,
         content: noteForm.content || 'متابعة تمريضية'
       });
       addToast('تم حفظ الملاحظة التمريضية بنجاح ✓', 'success');
       setModalOpen('');
-      setNoteForm({ vitals: '', content: '' });
+      setNoteForm({ bp: '', hr: '', temp: '', spo2: '', content: '' });
       setSelectedPatient(null);
     } catch (err) {
       console.error('❌ Nursing note error:', err.response?.data || err.message);
@@ -63,6 +67,22 @@ export default function NursingDashboard() {
       addToast(errMsg, 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openHistory = async (adm, patientName) => {
+    setHistoryPatient({ ...adm, _name: patientName });
+    setHistoryNotes([]);
+    setHistoryLoading(true);
+    setModalOpen('history');
+    try {
+      const res = await api.get(`/nursing/notes/admission/${adm.id}`);
+      const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setHistoryNotes(list);
+    } catch (err) {
+      addToast('تعذر تحميل السجل الحيوي', 'error');
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -212,17 +232,26 @@ export default function NursingDashboard() {
                             </span>
                           </td>
                           <td className="p-4 text-center">
-                            <button
-                              onClick={() => {
-                                setSelectedPatient({ ...adm, _name: patientName, _doctor: doctorName, _bed: `${roomName} / سرير ${bedNumber}` });
-                                setNoteForm({ vitals: '', content: '' });
-                                setModalOpen('note');
-                              }}
-                              className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold hover:bg-rose-100 transition-colors flex items-center gap-1 mx-auto"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              تسجيل متابعة
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedPatient({ ...adm, _name: patientName, _doctor: doctorName, _bed: `${roomName} / سرير ${bedNumber}` });
+                                  setNoteForm({ bp: '', hr: '', temp: '', spo2: '', content: '' });
+                                  setModalOpen('note');
+                                }}
+                                className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold hover:bg-rose-100 transition-colors flex items-center gap-1"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                تسجيل متابعة
+                              </button>
+                              <button
+                                onClick={() => openHistory(adm, patientName)}
+                                className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors flex items-center gap-1"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                السجل
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -323,12 +352,24 @@ export default function NursingDashboard() {
               <Activity className="w-4 h-4 text-rose-500" />
               القياسات الحيوية
             </label>
-            <input
-              value={noteForm.vitals}
-              onChange={e => setNoteForm(p => ({ ...p, vitals: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border bg-slate-50 border-slate-200 outline-none focus:border-rose-400 transition-colors text-sm font-cairo"
-              placeholder="مثال: ضغط 120/80، حرارة 37.2°، نبض 80، تشبع أكسجين 98%"
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30">
+                <label className="block text-red-600 dark:text-red-400 text-xs font-bold mb-1">ضغط الدم (BP)</label>
+                <input type="text" placeholder="120/80" value={noteForm.bp || ''} onChange={e => setNoteForm(p => ({...p, bp: e.target.value}))} className="w-full px-3 py-2 rounded-lg border border-red-200 dark:border-red-700 text-sm bg-white dark:bg-slate-800 dark:text-white outline-none focus:border-red-400 font-cairo" />
+              </div>
+              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30">
+                <label className="block text-blue-600 dark:text-blue-400 text-xs font-bold mb-1">النبض (HR)</label>
+                <input type="number" min="40" max="200" placeholder="80" value={noteForm.hr || ''} onChange={e => setNoteForm(p => ({...p, hr: e.target.value}))} className="w-full px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-700 text-sm bg-white dark:bg-slate-800 dark:text-white outline-none focus:border-blue-400 font-cairo" />
+              </div>
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30">
+                <label className="block text-amber-600 dark:text-amber-400 text-xs font-bold mb-1">الحرارة (°C)</label>
+                <input type="number" step="0.1" min="35" max="42" placeholder="37.0" value={noteForm.temp || ''} onChange={e => setNoteForm(p => ({...p, temp: e.target.value}))} className="w-full px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-700 text-sm bg-white dark:bg-slate-800 dark:text-white outline-none focus:border-amber-400 font-cairo" />
+              </div>
+              <div className="p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/30">
+                <label className="block text-green-600 dark:text-green-400 text-xs font-bold mb-1">تشبع الأكسجين (SpO2%)</label>
+                <input type="number" min="50" max="100" placeholder="98" value={noteForm.spo2 || ''} onChange={e => setNoteForm(p => ({...p, spo2: e.target.value}))} className="w-full px-3 py-2 rounded-lg border border-green-200 dark:border-green-700 text-sm bg-white dark:bg-slate-800 dark:text-white outline-none focus:border-green-400 font-cairo" />
+              </div>
+            </div>
           </div>
 
           {/* Notes */}
@@ -362,6 +403,52 @@ export default function NursingDashboard() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* History Modal */}
+      <Modal
+        open={modalOpen === 'history'}
+        onClose={() => { setModalOpen(''); setHistoryPatient(null); }}
+        title={`السجل الحيوي — ${historyPatient?._name}`}
+        size="lg"
+      >
+        <div className="p-6">
+          {historyLoading ? (
+            <div className="text-center py-10 text-slate-400 animate-pulse">جاري تحميل السجل...</div>
+          ) : historyNotes.length === 0 ? (
+            <div className="text-center py-10">
+              <Activity className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+              <p className="text-slate-400 font-medium">لا توجد ملاحظات تمريضية مسجلة لهذا المريض</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              {historyNotes.map((note, i) => (
+                <div key={note.id || i} className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {note.createdAt ? new Date(note.createdAt).toLocaleString('ar-EG') : '—'}
+                    </span>
+                    {note.nurse?.user?.name && (
+                      <span className="text-xs text-slate-400">بواسطة: {note.nurse.user.name}</span>
+                    )}
+                  </div>
+                  {note.vitalSigns && (
+                    <div className="p-2 rounded-lg bg-rose-50 border border-rose-100 mb-2">
+                      <p className="text-xs font-bold text-rose-600 flex items-center gap-1">
+                        <HeartPulse className="w-3 h-3" />
+                        {note.vitalSigns}
+                      </p>
+                    </div>
+                  )}
+                  {note.content && (
+                    <p className="text-sm text-slate-700">{note.content}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </Modal>
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />

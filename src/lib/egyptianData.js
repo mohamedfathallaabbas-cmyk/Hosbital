@@ -16,11 +16,13 @@ export const EGYPTIAN_PATIENTS = [
 ];
 
 export const DEPARTMENTS = [
-  { id: 1, name: 'قسم القلب والأوعية', head: 'د. أحمد محمود عبدالعزيز', doctors: 8, beds: 24, occupancy: 87, phone: '02-2345-6781', floor: 'الطابق الثالث' },
-  { id: 2, name: 'قسم الأعصاب', head: 'د. سارة خالد الشافعي', doctors: 5, beds: 16, occupancy: 62, phone: '02-2345-6782', floor: 'الطابق الثاني' },
-  { id: 3, name: 'قسم العظام والمفاصل', head: 'د. محمد إبراهيم حسن', doctors: 6, beds: 20, occupancy: 75, phone: '02-2345-6783', floor: 'الطابق الأول' },
-  { id: 4, name: 'طب الأطفال والمواليد', head: 'د. فاطمة علي الجمال', doctors: 10, beds: 30, occupancy: 93, phone: '02-2345-6784', floor: 'الطابق الرابع' },
-  { id: 5, name: 'النساء والتوليد', head: 'د. ريم محمد الحسيني', doctors: 7, beds: 22, occupancy: 70, phone: '02-2345-6785', floor: 'الطابق الخامس' },
+  { id: 1, name: 'قسم أمراض القلب', head: 'د. مجدي يعقوب', doctors: 2, beds: 24, occupancy: 87, phone: '02-2345-6781', floor: 'الطابق الثالث' },
+  { id: 2, name: 'قسم الباطنة العامة', head: 'د. سارة العمري', doctors: 2, beds: 20, occupancy: 60, phone: '02-2345-6782', floor: 'الطابق الأول' },
+  { id: 3, name: 'قسم طب الأطفال', head: 'د. فاطمة الجمال', doctors: 2, beds: 30, occupancy: 93, phone: '02-2345-6783', floor: 'الطابق الرابع' },
+  { id: 4, name: 'قسم الجراحة العامة', head: 'د. عمر منصور', doctors: 2, beds: 15, occupancy: 70, phone: '02-2345-6784', floor: 'الطابق الثاني' },
+  { id: 5, name: 'قسم جراحة العظام', head: 'د. محمد مكاوي', doctors: 2, beds: 22, occupancy: 75, phone: '02-2345-6785', floor: 'الطابق الأول' },
+  { id: 6, name: 'قسم النساء والتوليد', head: 'د. ريم الحسيني', doctors: 2, beds: 18, occupancy: 65, phone: '02-2345-6786', floor: 'الطابق الخامس' },
+  { id: 7, name: 'قسم المخ والأعصاب', head: 'د. سليمان الحداد', doctors: 2, beds: 12, occupancy: 50, phone: '02-2345-6787', floor: 'الطابق الثاني' }
 ];
 
 export const BOOKINGS = [
