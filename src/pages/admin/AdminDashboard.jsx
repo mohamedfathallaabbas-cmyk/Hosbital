@@ -36,7 +36,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [mobileMenu, setMobileMenu] = useState(false);
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
-  const handleLogout = () => { sessionStorage.removeItem('hospitalUser'); navigate('/role-select'); };
+  const handleLogout = () => { sessionStorage.removeItem('hospitalUser'); sessionStorage.removeItem('staff_portal_authorized'); navigate('/'); };
   const currentTitle = sidebarLinks.find(l => l.path === location.pathname)?.label || 'لوحة التحكم';
 
   return (

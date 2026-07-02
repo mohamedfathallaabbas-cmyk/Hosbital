@@ -459,7 +459,7 @@ export default function PharmacyDashboard() {
   const [mobileMenu, setMobileMenu] = useState(false);
   
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
-  const handleLogout = () => { sessionStorage.removeItem('hospitalUser'); navigate('/role-select'); };
+  const handleLogout = () => { sessionStorage.removeItem('hospitalUser'); sessionStorage.removeItem('staff_portal_authorized'); navigate('/'); };
 
   const sidebarLinks = [
     { icon: Pill, label: 'صرف الروشتات', path: '/pharmacy/dashboard' },

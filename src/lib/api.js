@@ -37,8 +37,12 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      sessionStorage.removeItem('hospitalUser');
-      window.location.href = '/role-select';
+      const isAuthRequest = error.config?.url && (error.config.url.includes('/auth/login') || error.config.url.includes('/auth/register'));
+      if (!isAuthRequest) {
+        sessionStorage.removeItem('hospitalUser');
+        sessionStorage.removeItem('staff_portal_authorized');
+        window.location.href = '/';
+      }
     }
     return Promise.reject(error);
   }

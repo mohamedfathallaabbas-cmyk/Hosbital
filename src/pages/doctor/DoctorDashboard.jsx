@@ -127,16 +127,31 @@ function PatientViewModal({ patient, onClose }) {
 }
 
 function DiagnosisModal({ patient, onSave, onClose }) {
-  const [form, setForm] = useState({ diagnosis: '', medications: '', notes: '', risk: 'medium', nextVisit: '', labTests: '', audioBase64: null });
+  const [form, setForm] = useState({ 
+    diagnosis: '', 
+    medications: '', 
+    notes: '', 
+    risk: 'medium', 
+    nextVisit: '', 
+    labTests: '', 
+    selectedLabTestId: '', 
+    customLabTestName: '', 
+    audioBase64: null 
+  });
   
   // Voice Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [labCatalog, setLabCatalog] = useState([]);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const todayStr = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    api.get('/labs/catalog').then(res => setLabCatalog(res.data || [])).catch(console.error);
+  }, []);
 
   const startRecording = async () => {
     try {
@@ -190,14 +205,14 @@ function DiagnosisModal({ patient, onSave, onClose }) {
         <textarea required value={form.diagnosis} onChange={e => set('diagnosis', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-20 resize-none outline-none focus:border-teal-400 dark:focus:border-teal-500 font-cairo" placeholder="أدخل التشخيص الطبي..." />
       </div>
       <div>
-        <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">الأدوية الموصوفة</label>
+        <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1">الأدوي الموصوفة</label>
         <textarea value={form.medications} onChange={e => set('medications', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-20 resize-none outline-none focus:border-teal-400 dark:focus:border-teal-500 font-cairo" placeholder="اسم الدواء، الجرعة، المدة...&#10;مثال: باراسيتامول 500مج — حبة كل 8 ساعات — لمدة 5 أيام" />
       </div>
       <div>
         <div className="flex justify-between items-center mb-1">
           <label className="text-slate-600 dark:text-slate-400 text-sm font-semibold">ملاحظات الطبيب</label>
           <button type="button" onClick={isRecording ? stopRecording : startRecording} disabled={isProcessing} className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-bold ${isRecording ? 'bg-red-100 text-red-600 hover:bg-red-200 animate-pulse' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'}`}>
-            {isProcessing ? <><Loader2 className="w-3.5 h-3.5 animate-spin"/>جاري التحليل...</> : isRecording ? <><Square className="w-3.5 h-3.5 fill-current"/>إيقاف</> : <><Mic className="w-3.5 h-3.5"/>تحدث ليتم الكتابة</>}
+            {isProcessing ? <><Loader2 className="w-3.5 h-3.5 animate-spin"/>جاري التحليل...</> : isRecording ? <><Square className="w-3.5 h-3.5 fill-current"/>إيقاف</> : <><Mic className="w-3.5 h-3.5"/>تحدث</>}
           </button>
         </div>
         <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-24 resize-none font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500" placeholder="ملاحظات إضافية، يمكن استخدام الإملاء الصوتي..." />
@@ -209,9 +224,43 @@ function DiagnosisModal({ patient, onSave, onClose }) {
       </div>
       <div>
         <label className="block text-slate-600 dark:text-slate-400 text-sm font-semibold mb-1 flex items-center gap-2">
-          <TestTube2 className="w-4 h-4 text-blue-500" />طلب تحاليل / أشعة
+          <FlaskConical className="w-4 h-4 text-blue-500" />طلب فحص معملي / أشعة
         </label>
-        <textarea value={form.labTests} onChange={e => set('labTests', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-20 resize-none font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500" placeholder="أدخل التحاليل المطلوبة...&#10;مثال: صورة دم كاملة (CBC)، تحليل سكر تراكمي" />
+        <select 
+          value={form.selectedLabTestId} 
+          onChange={e => {
+            const val = e.target.value;
+            set('selectedLabTestId', val);
+            if (val !== 'other') set('customLabTestName', '');
+          }}
+          className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500"
+        >
+          <option value="">لا يوجد طلب</option>
+          {labCatalog.map(item => (
+            <option key={item.id} value={item.id}>{item.name} ({item.cost} ج.م)</option>
+          ))}
+          <option value="other">أخرى (طلب فحص خارجي)</option>
+        </select>
+        
+        {form.selectedLabTestId === 'other' && (
+          <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}>
+            <input 
+              required
+              type="text"
+              value={form.customLabTestName} 
+              onChange={e => set('customLabTestName', e.target.value)} 
+              placeholder="اكتب اسم الفحص الخارجي المطلوب..." 
+              className="w-full mt-2 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500"
+            />
+          </motion.div>
+        )}
+
+        <textarea 
+          value={form.labTests} 
+          onChange={e => set('labTests', e.target.value)} 
+          className="w-full mt-2 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-slate-50 dark:bg-slate-800/50 dark:text-white h-16 resize-none font-cairo outline-none focus:border-teal-400 dark:focus:border-teal-500" 
+          placeholder="ملاحظات وتوجيهات إضافية للمختبر (اختياري)..." 
+        />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -301,20 +350,20 @@ function TodayPatients() {
         prescriptions: parsedPrescriptions
       });
 
-      if (form.labTests && form.labTests.trim()) {
+      if (form.selectedLabTestId) {
         const labPatientId = diagP.patientId;
         if (labPatientId) {
           try {
-            const catalogRes = await api.get('/labs/catalog');
-            const catalog = catalogRes.data || [];
-            const firstTest = catalog[0];
-            if (firstTest) {
-              await api.post('/labs/orders', {
-                patientId: parseInt(labPatientId),
-                testId: firstTest.id,
-                notes: form.labTests
-              });
+            const body = {
+              patientId: parseInt(labPatientId),
+              notes: form.labTests || undefined
+            };
+            if (form.selectedLabTestId === 'other') {
+              body.testName = form.customLabTestName;
+            } else {
+              body.testId = parseInt(form.selectedLabTestId);
             }
+            await api.post('/labs/orders', body);
           } catch (labErr) {
             console.error('Lab order error:', labErr);
           }
@@ -518,7 +567,7 @@ export default function DoctorDashboard() {
   const navigate = useNavigate();
   const [mobileMenu, setMobileMenu] = useState(false);
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
-  const handleLogout = () => { sessionStorage.removeItem('hospitalUser'); navigate('/role-select'); };
+  const handleLogout = () => { sessionStorage.removeItem('hospitalUser'); sessionStorage.removeItem('staff_portal_authorized'); navigate('/'); };
   const currentTitle = sidebarLinks.find(l => l.path === location.pathname)?.label || 'لوحة التحكم';
 
   return (

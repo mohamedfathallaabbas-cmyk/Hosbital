@@ -39,7 +39,7 @@ router.get('/orders/patient/:patientId', authenticate, async (req, res) => {
 
 // POST: إنشاء طلب معمل جديد (من قبل الطبيب)
 router.post('/orders', authenticate, async (req, res) => {
-  const { patientId, testId, notes } = req.body;
+  const { patientId, testId, testName, notes } = req.body;
   const doctorId = req.user.doctorId;
 
   try {
@@ -52,12 +52,32 @@ router.post('/orders', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'لم يتم العثور على ملف الطبيب' });
     }
 
+    let finalTestId = testId ? parseInt(testId) : null;
+    if (!finalTestId && testName) {
+      let testObj = await prisma.labTestCatalog.findFirst({ where: { name: testName } });
+      if (!testObj) {
+        testObj = await prisma.labTestCatalog.create({
+          data: {
+            name: testName,
+            type: 'LAB',
+            cost: 0.0
+          }
+        });
+      }
+      finalTestId = testObj.id;
+    }
+
+    if (!finalTestId) {
+      return res.status(400).json({ error: 'معرف التحليل أو الاسم مطلوب' });
+    }
+
     const newOrder = await prisma.labOrder.create({
       data: {
         patientId: parseInt(patientId),
         doctorId: finalDoctorId,
-        testId: parseInt(testId),
-        status: 'PENDING'
+        testId: finalTestId,
+        status: 'PENDING',
+        result: notes || null
       },
       include: { test: true }
     });

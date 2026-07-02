@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -66,6 +67,67 @@ export default function Landing() {
       localStorage.setItem('darkMode', 'false');
     }
   }, [darkMode]);
+
+  // ── Auth Context & New Auth Modals ───────────────────────────────────────
+  const { login } = useAuth();
+  const [showPatientLogin, setShowPatientLogin] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
+
+  const [showStaffPassModal, setShowStaffPassModal] = useState(false);
+  const [staffPassword, setStaffPassword] = useState('');
+  const [staffPassError, setStaffPassError] = useState('');
+
+  const handlePatientLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    if (!loginEmail.trim() || !loginPassword) {
+      return setLoginError('البريد الإلكتروني وكلمة المرور مطلوبان');
+    }
+    setLoginSubmitting(true);
+    try {
+      const res = await api.post('/auth/login', {
+        email: loginEmail.trim().toLowerCase(),
+        password: loginPassword
+      });
+
+      const { token, user } = res.data;
+      if ((user.role || '').toUpperCase() !== 'PATIENT') {
+        return setLoginError('هذا الحساب غير مخصص للمرضى. يرجى تسجيل الدخول من بوابة الموظفين.');
+      }
+
+      login({
+        id: user.id,
+        role: 'patient',
+        name: user.name,
+        email: user.email,
+        token: token,
+        patientId: user.patientId
+      });
+
+      setShowPatientLogin(false);
+      navigate('/patient/dashboard');
+    } catch (err) {
+      setLoginError(err.response?.data?.message || err.response?.data?.error || 'البريد الإلكتروني أو كلمة المرور غير صحيحة');
+    } finally {
+      setLoginSubmitting(false);
+    }
+  };
+
+  const handleStaffSubmit = (e) => {
+    e.preventDefault();
+    setStaffPassError('');
+    if (staffPassword === 'shifa-staff-2026') {
+      sessionStorage.setItem('staff_portal_authorized', 'true');
+      setShowStaffPassModal(false);
+      setStaffPassword('');
+      navigate('/role-select');
+    } else {
+      setStaffPassError('رمز الدخول الموحد غير صحيح!');
+    }
+  };
 
   // ── Sign Up Modal State ───────────────────────────────────────────────────
   const [showSignUp, setShowSignUp] = useState(false);
@@ -156,12 +218,17 @@ export default function Landing() {
               title={darkMode ? 'الوضع المضيء' : 'الوضع الداكن'}>
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            <Link to="/role-select" className="text-white/90 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/10">
-              تسجيل الدخول
-            </Link>
+            <button onClick={() => { setShowPatientLogin(true); setLoginError(''); }}
+              className="text-white/90 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-white/10">
+              تسجيل دخول
+            </button>
             <button onClick={() => { setShowSignUp(true); setSignUpError(''); }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-white/30 text-white hover:bg-white/10 transition-all">
               <UserPlus className="w-4 h-4" />إنشاء حساب
+            </button>
+            <button onClick={() => { setShowStaffPassModal(true); setStaffPassError(''); }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white font-bold transition-all shadow-md">
+              بوابة الموظفين
             </button>
             <a href="#contact" className="btn-primary-hospital text-sm">
               احجز الآن
@@ -187,13 +254,22 @@ export default function Landing() {
                   {darkMode ? <><Sun className="w-4 h-4" /> الوضع المضيء</> : <><Moon className="w-4 h-4" /> الوضع الداكن</>}
                 </button>
               </div>
-              <div className="flex gap-3 pt-2 flex-wrap">
-                <Link to="/role-select" className="flex-1 text-center text-white border border-white/30 py-2 rounded-xl text-sm">دخول</Link>
-                <button onClick={() => { setMobileMenu(false); setShowSignUp(true); }}
-                  className="flex-1 text-center bg-white/10 text-white py-2 rounded-xl text-sm border border-white/20">
-                  إنشاء حساب
+              <div className="flex flex-col gap-2 pt-2">
+                <div className="flex gap-2">
+                  <button onClick={() => { setMobileMenu(false); setShowPatientLogin(true); setLoginError(''); }}
+                    className="flex-1 text-center text-white border border-white/30 py-2 rounded-xl text-sm font-cairo">
+                    تسجيل دخول
+                  </button>
+                  <button onClick={() => { setMobileMenu(false); setShowSignUp(true); }}
+                    className="flex-1 text-center bg-white/10 text-white py-2 rounded-xl text-sm border border-white/20 font-cairo">
+                    إنشاء حساب
+                  </button>
+                </div>
+                <button onClick={() => { setMobileMenu(false); setShowStaffPassModal(true); setStaffPassError(''); }}
+                  className="w-full text-center bg-amber-600 text-white py-2 rounded-xl text-sm font-bold font-cairo shadow-md">
+                  بوابة الموظفين
                 </button>
-                <a href="#contact" className="flex-1 text-center btn-primary-hospital text-sm">احجز الآن</a>
+                <a href="#contact" className="w-full text-center btn-primary-hospital py-2 text-sm font-cairo">احجز الآن</a>
               </div>
             </motion.div>
           )}
@@ -472,8 +548,14 @@ export default function Landing() {
           </div>
           <div className="border-t border-white/10 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-slate-500 text-sm">© 2025 مستشفى الشفاء. جميع الحقوق محفوظة.</p>
-            <div className="flex gap-4">
-              <Link to="/role-select" className="btn-primary-hospital text-sm py-2 px-6">دخول النظام</Link>
+            <div className="flex items-center gap-3">
+              <button onClick={() => { setShowPatientLogin(true); setLoginError(''); }} className="text-slate-400 hover:text-white text-sm font-medium transition-all font-cairo">
+                تسجيل دخول
+              </button>
+              <span className="text-white/20 text-xs">|</span>
+              <button onClick={() => { setShowStaffPassModal(true); setStaffPassError(''); }} className="text-slate-400 hover:text-amber-400 text-sm font-medium transition-all font-cairo">
+                بوابة الموظفين
+              </button>
             </div>
           </div>
         </div>
@@ -652,12 +734,162 @@ export default function Landing() {
                 </button>
 
                 {/* Login link */}
-                <p className="text-center text-slate-500 text-sm">
+                <p className="text-center text-slate-500 text-sm font-cairo">
                   لديك حساب بالفعل؟{' '}
-                  <Link to="/role-select" onClick={() => setShowSignUp(false)}
-                    className="text-blue-600 font-bold hover:underline">سجّل دخولك هنا</Link>
+                  <button type="button" onClick={() => { setShowSignUp(false); setShowPatientLogin(true); setLoginError(''); }}
+                    className="text-blue-600 font-bold hover:underline">سجّل دخولك هنا</button>
                 </p>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Patient Login Modal */}
+        {showPatientLogin && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, y: 15 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 15 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800">
+              
+              {/* Modal Header */}
+              <div className="relative p-6 pb-4 bg-slate-900 border-b border-white/10 overflow-hidden">
+                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-20" style={{ background: '#2563eb' }} />
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
+                      <HeartPulse className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-white font-black text-xl">تسجيل دخول المرضى</h2>
+                      <p className="text-blue-200 text-xs mt-0.5 font-cairo">مستشفى الشفاء — Al-Shifa Hospital</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowPatientLogin(false)}
+                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <form onSubmit={handlePatientLogin} className="p-6 space-y-4" dir="rtl">
+                
+                {/* Error Banner */}
+                {loginError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 text-sm font-medium">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span className="font-cairo text-xs">{loginError}</span>
+                  </div>
+                )}
+
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5 font-cairo">البريد الإلكتروني</label>
+                  <input type="email" required value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                    placeholder="example@email.com"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all" dir="ltr" />
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5 font-cairo">كلمة المرور</label>
+                  <div className="relative">
+                    <input type={showPassword ? 'text' : 'password'} required value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all" dir="ltr" />
+                    <button type="button" onClick={() => setShowPassword(p => !p)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <button type="submit" disabled={loginSubmitting}
+                  className="w-full py-4 rounded-2xl text-white font-black text-base transition-all disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden font-cairo"
+                  style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb, #0ea5e9)' }}>
+                  {loginSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      جاري الدخول...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      تسجيل دخول
+                    </span>
+                  )}
+                </button>
+
+                {/* Register Link */}
+                <p className="text-center text-slate-500 text-sm pt-2 font-cairo">
+                  ليس لديك حساب مريض؟{' '}
+                  <button type="button" onClick={() => { setShowPatientLogin(false); setShowSignUp(true); }}
+                    className="text-blue-600 font-bold hover:underline">أنشئ حساباً الآن</button>
+                </p>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Staff Password Modal */}
+        {showStaffPassModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, y: 15 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 15 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800">
+              
+              {/* Modal Header */}
+              <div className="relative p-6 pb-4 bg-slate-900 border-b border-white/10 overflow-hidden">
+                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-20" style={{ background: '#d97706' }} />
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-white font-black text-xl font-cairo">بوابة الموظفين — الدخول الآمن</h2>
+                      <p className="text-amber-200 text-xs mt-0.5 font-cairo">خاص بالطاقم الطبي والإداري للمستشفى</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowStaffPassModal(false)}
+                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <form onSubmit={handleStaffSubmit} className="p-6 space-y-4" dir="rtl">
+                
+                {/* Error Banner */}
+                {staffPassError && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span className="font-cairo text-xs">{staffPassError}</span>
+                  </div>
+                )}
+
+                {/* Password Input */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5 font-cairo">رمز الدخول الموحد للموظفين (Unified Staff Access Code)</label>
+                  <div className="relative">
+                    <input type={showPassword ? 'text' : 'password'} required value={staffPassword} onChange={e => setStaffPassword(e.target.value)}
+                      placeholder="أدخل رمز الدخول الموحد"
+                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all" dir="ltr" />
+                    <button type="button" onClick={() => setShowPassword(p => !p)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <button type="submit"
+                  className="w-full py-4 rounded-2xl text-white font-black text-base transition-all relative overflow-hidden font-cairo"
+                  style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)' }}>
+                  التحقق والدخول للبوابة
+                </button>
+              </form>
             </motion.div>
           </motion.div>
         )}

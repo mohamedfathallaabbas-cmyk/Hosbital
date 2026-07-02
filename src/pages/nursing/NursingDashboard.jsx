@@ -88,7 +88,8 @@ export default function NursingDashboard() {
 
   const logout = () => {
     sessionStorage.removeItem('hospitalUser');
-    navigate('/role-select');
+    sessionStorage.removeItem('staff_portal_authorized');
+    navigate('/');
   };
 
   // Derived stats

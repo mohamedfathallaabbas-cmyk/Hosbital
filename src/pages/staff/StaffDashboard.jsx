@@ -109,7 +109,8 @@ export default function StaffDashboard() {
 
   const logout = () => {
     sessionStorage.removeItem('hospitalUser');
-    navigate('/role-select');
+    sessionStorage.removeItem('staff_portal_authorized');
+    navigate('/');
   };
 
   const payroll    = profile?.payroll    || {};

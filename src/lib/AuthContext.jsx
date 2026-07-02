@@ -40,9 +40,10 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     sessionStorage.removeItem('hospitalUser');
+    sessionStorage.removeItem('staff_portal_authorized');
     setUser(null);
     setIsAuthenticated(false);
-    window.location.href = '/role-select';
+    window.location.href = '/';
   };
 
   return (

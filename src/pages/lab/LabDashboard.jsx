@@ -19,6 +19,7 @@ function LabDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [resultText, setResultText] = useState('');
+  const [bloodType, setBloodType] = useState('');
   const [printData, setPrintData] = useState(null);
   const { toasts, addToast, removeToast } = useToast();
   const navigate = useNavigate();
@@ -39,13 +40,25 @@ function LabDashboard() {
     fetchOrders();
   }, []);
 
+  useEffect(() => {
+    if (selectedOrder) {
+      setResultText(selectedOrder.result || '');
+      setBloodType(selectedOrder.patient?.bloodType || '');
+    } else {
+      setResultText('');
+      setBloodType('');
+    }
+  }, [selectedOrder]);
+
   const handleUpdateResult = async (e) => {
     e.preventDefault();
     try {
       await api.patch(`/labs/orders/${selectedOrder.id}`, { result: resultText });
-      addToast('تم حفظ نتيجة التحليل بنجاح ✓', 'success');
+      if (selectedOrder.patient?.id && bloodType) {
+        await api.patch(`/patients/${selectedOrder.patient.id}`, { bloodType });
+      }
+      addToast('تم حفظ نتيجة التحليل وتحديث فصيلة الدم بنجاح ✓', 'success');
       setSelectedOrder(null);
-      setResultText('');
       fetchOrders();
     } catch (error) {
       addToast('فشل في تحديث النتيجة', 'error');
@@ -54,7 +67,8 @@ function LabDashboard() {
 
   const handleLogout = () => {
     sessionStorage.removeItem('hospitalUser');
-    navigate('/role-select');
+    sessionStorage.removeItem('staff_portal_authorized');
+    navigate('/');
   };
 
   return (
@@ -198,6 +212,21 @@ function LabDashboard() {
           </div>
 
           <form onSubmit={handleUpdateResult} className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">فصيلة دم المريض</label>
+              <select
+                disabled={selectedOrder?.status === 'COMPLETED'}
+                value={bloodType}
+                onChange={e => setBloodType(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none focus:border-teal-400"
+              >
+                <option value="">اختر فصيلة الدم...</option>
+                {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map(bt => (
+                  <option key={bt} value={bt}>{bt}</option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">النتيجة والتقرير الطبي</label>
               <textarea

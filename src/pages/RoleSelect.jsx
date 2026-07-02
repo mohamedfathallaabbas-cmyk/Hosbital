@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 
 const roles = [
-  { id: 'patient', label: 'مريض', sublabel: 'Patient', icon: User, color: '#2563eb', bg: 'rgba(37,99,235,0.1)', gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)', desc: 'عرض المواعيد والسجل الطبي', path: '/patient/dashboard' },
   { id: 'doctor', label: 'طبيب', sublabel: 'Doctor', icon: Stethoscope, color: '#14b8a6', bg: 'rgba(20,184,166,0.1)', gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)', desc: 'إدارة المرضى والجداول', path: '/doctor/dashboard' },
   { id: 'nurse', label: 'ممرض', sublabel: 'Nurse', icon: HeartPulse, color: '#f43f5e', bg: 'rgba(244,63,94,0.1)', gradient: 'linear-gradient(135deg, #f43f5e, #e11d48)', desc: 'متابعة المرضى المنومين', path: '/nursing/dashboard' },
   { id: 'reception', label: 'استقبال', sublabel: 'Reception', icon: Building2, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', desc: 'الحجوزات والمرضى الجدد', path: '/reception/dashboard' },
@@ -19,11 +18,9 @@ const roles = [
   { id: 'admin', label: 'مدير النظام', sublabel: 'Admin', icon: Settings, color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', desc: 'إدارة تشغيلية للنظام', path: '/admin/dashboard' },
   { id: 'financial_manager', label: 'مدير مالي', sublabel: 'Finance', icon: TrendingUp, color: '#eab308', bg: 'rgba(234,179,8,0.1)', gradient: 'linear-gradient(135deg, #eab308, #ca8a04)', desc: 'الماليات والرواتب والفواتير', path: '/admin/dashboard' },
   { id: 'staff', label: 'موظف', sublabel: 'Staff', icon: User, color: '#475569', bg: 'rgba(71,85,105,0.1)', gradient: 'linear-gradient(135deg, #475569, #0f172a)', desc: 'بيانات الموظف والمرتب والحضور والإجازات', path: '/staff/dashboard' },
-
 ];
 
 const credentials = {
-  patient: { email: 'patient1@alshifa.com', pass: '123456' },
   doctor: { email: 'magdy@alshifa.com', pass: '123456' },
   nurse: { email: 'nurse1@alshifa.com', pass: '123456' },
   reception: { email: 'reception1@alshifa.com', pass: '123456' },
@@ -32,7 +29,6 @@ const credentials = {
   admin: { email: 'admin@alshifa.com', pass: '123456' },
   financial_manager: { email: 'finance@alshifa.com', pass: '123456' },
   staff: { email: 'staff@alshifa.com', pass: '123456' },
-
 };
 
 const userNames = {
@@ -47,6 +43,13 @@ import { useAuth } from '@/lib/AuthContext';
 export default function RoleSelect() {
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const isAuth = sessionStorage.getItem('staff_portal_authorized');
+    if (isAuth !== 'true') {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
   const [step, setStep] = useState('role');
   const [selectedRole, setSelectedRole] = useState(null);
   const [email, setEmail] = useState('');
@@ -189,7 +192,7 @@ export default function RoleSelect() {
           {step === 'role' ? (
             <motion.div key="roles-grid" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               className="flex-1 flex items-center justify-center">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 w-full">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6 w-full max-w-5xl mx-auto">
                 {roles.map((role, i) => (
                   <motion.div key={role.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + (i * 0.05) }}
                     onClick={() => handleRoleSelect(role)} className="relative group cursor-pointer">
