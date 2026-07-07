@@ -1,53 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, Mail, MapPin, Clock, Calendar, CheckCircle, User, CreditCard, Stethoscope, ChevronDown } from 'lucide-react';
-
-const departments = [
-  'قسم أمراض القلب',
-  'قسم الباطنة العامة',
-  'قسم طب الأطفال',
-  'قسم الجراحة العامة',
-  'قسم جراحة العظام',
-  'قسم النساء والتوليد',
-  'قسم طب العيون والرمد',
-  'قسم الأنف والأذن والحنجرة',
-  'قسم الأمراض الجلدية',
-  'قسم طب الأسنان',
-  'قسم المخ والأعصاب',
-  'قسم الطوارئ والحوادث',
-];
-
-const doctors = {
-  'قسم أمراض القلب': ['د. مجدي يعقوب', 'د. خالد الرشيدي'],
-  'قسم الباطنة العامة': ['د. سارة العمري', 'د. علي الشافعي'],
-  'قسم طب الأطفال': ['د. فاطمة الجمال', 'د. ليلى السيد'],
-  'قسم الجراحة العامة': ['د. عمر منصور', 'د. طارق سليم'],
-  'قسم جراحة العظام': ['د. محمد مكاوي', 'د. محمود جلال'],
-  'قسم النساء والتوليد': ['د. ريم الحسيني', 'د. منى السيد'],
-  'قسم طب العيون والرمد': ['د. هشام زهران', 'د. ياسمين شرف'],
-  'قسم الأنف والأذن والحنجرة': ['د. شريف بسيوني', 'د. غادة الهواري'],
-  'قسم الأمراض الجلدية': ['د. سعيد طه', 'د. ريهام الدالي'],
-  'قسم طب الأسنان': ['د. ممدوح الحربي', 'د. دينا عثمان'],
-  'قسم المخ والأعصاب': ['د. سليمان الحداد', 'د. سلمى الجندي'],
-  'قسم الطوارئ والحوادث': ['د. وائل المصري', 'د. دعاء شحاتة'],
-};
+import api from '../../lib/api';
 
 const timeSlots = ['08:00 ص', '08:30 ص', '09:00 ص', '09:30 ص', '10:00 ص', '10:30 ص', '11:00 ص', '11:30 ص', '12:00 م', '01:00 م', '02:00 م', '03:00 م', '04:00 م', '05:00 م'];
-
 const visitTypes = ['كشف جديد', 'متابعة', 'استشارة', 'إجراء طبي'];
 
 const contactInfo = [
   { icon: Phone, label: 'الهاتف', value: '19123', color: '#2563eb' },
   { icon: Mail, label: 'البريد الإلكتروني', value: 'info@alshifa-hospital.com', color: '#14b8a6' },
-  { icon: MapPin, label: 'العنوان', value: 'القاهرة، مصر — شارع التحرير', color: '#f59e0b' },
+  { icon: MapPin, label: 'العنوان', value: 'العاصمة الادارية، مصر', color: '#f59e0b' },
   { icon: Clock, label: 'ساعات العمل', value: 'طوارئ: 24/7 | عيادات: 8ص - 8م', color: '#ef4444' },
 ];
 
-export default function BookingSection() {
+export default function BookingSection({ onNeedLogin }) {
   const [form, setForm] = useState({ name: '', nationalId: '', phone: '', email: '', dob: '', gender: '', department: '', doctor: '', date: '', time: '', visitType: '', insurance: '', notes: '' });
   const [submitted, setSubmitted] = useState(false);
   const [bookingRef, setBookingRef] = useState('');
   const [errors, setErrors] = useState({});
+  const [dbDepts, setDbDepts] = useState([]);
+  const [dbDoctors, setDbDoctors] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.get('/admin/departments')
+      .then(res => setDbDepts(res.data || []))
+      .catch(err => console.error('Failed to load departments:', err));
+  }, []);
+
+  useEffect(() => {
+    if (form.department) {
+      api.get('/admin/doctors')
+        .then(res => {
+          const list = res.data || [];
+          const filtered = list.filter(d => d.departmentId === parseInt(form.department));
+          setDbDoctors(filtered);
+        })
+        .catch(err => console.error('Failed to load doctors:', err));
+    } else {
+      setDbDoctors([]);
+    }
+  }, [form.department]);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -55,7 +48,7 @@ export default function BookingSection() {
     const e = {};
     if (!form.name.trim()) e.name = true;
     if (!/^\d{14}$/.test(form.nationalId)) e.nationalId = true;
-    if (!/^(010|011|012|015)\d{8}$/.test(form.phone)) e.phone = true;
+    if (!/^01[01259]\d{8}$/.test(form.phone)) e.phone = true;
     if (!form.gender) e.gender = true;
     if (!form.department) e.department = true;
     if (!form.date) e.date = true;
@@ -65,17 +58,39 @@ export default function BookingSection() {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
-    const ref = 'HSP-' + Date.now().toString().slice(-6);
-    setBookingRef(ref);
-    setSubmitted(true);
+
+    const storedUser = sessionStorage.getItem('hospitalUser');
+    if (storedUser) {
+      setLoading(true);
+      try {
+        const res = await api.post('/appointments', {
+          departmentId: form.department,
+          doctorId: form.doctor ? parseInt(form.doctor) : undefined,
+          date: form.date,
+          timeSlot: form.time,
+          type: form.visitType === 'كشف جديد' ? 'CHECKUP' : 'FOLLOWUP'
+        });
+        const apptId = res.data?.appointment?.id || res.data?.id || Date.now().toString().slice(-6);
+        setBookingRef(`HSP-${apptId}`);
+        setSubmitted(true);
+      } catch (err) {
+        alert(err.response?.data?.error || 'حدث خطأ أثناء حجز الموعد. يرجى التحقق من المدخلات.');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // If patient is not logged in, store the booking as pending and prompt login
+      localStorage.setItem('pending_booking', JSON.stringify(form));
+      alert('يرجى تسجيل الدخول أو إنشاء حساب مريض أولاً لحفظ وتأكيد حجزك في النظام.');
+      if (onNeedLogin) onNeedLogin();
+    }
   };
 
   const handleReset = () => { setSubmitted(false); setForm({ name: '', nationalId: '', phone: '', email: '', dob: '', gender: '', department: '', doctor: '', date: '', time: '', visitType: '', insurance: '', notes: '' }); setErrors({}); };
 
-  const availableDoctors = form.department ? (doctors[form.department] || []) : [];
   const today = new Date().toISOString().split('T')[0];
 
   return (
@@ -125,8 +140,8 @@ export default function BookingSection() {
                 <div className="text-3xl font-black mb-6 py-3 px-6 rounded-2xl inline-block" style={{ background: 'linear-gradient(135deg, #2563eb, #14b8a6)', color: 'white', letterSpacing: '2px' }}>{bookingRef}</div>
                 <div className="bg-slate-50 rounded-2xl p-4 text-right mb-6 space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-slate-500">الاسم:</span><span className="font-semibold">{form.name}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">القسم:</span><span className="font-semibold">{form.department}</span></div>
-                  {form.doctor && <div className="flex justify-between"><span className="text-slate-500">الطبيب:</span><span className="font-semibold">{form.doctor}</span></div>}
+                  <div className="flex justify-between"><span className="text-slate-500">القسم:</span><span className="font-semibold">{dbDepts.find(d => String(d.id) === String(form.department))?.name || '—'}</span></div>
+                  {form.doctor && <div className="flex justify-between"><span className="text-slate-500">الطبيب:</span><span className="font-semibold">{dbDoctors.find(d => String(d.id) === String(form.doctor))?.user?.name || '—'}</span></div>}
                   <div className="flex justify-between"><span className="text-slate-500">الموعد:</span><span className="font-semibold">{form.date} — {form.time}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">نوع الزيارة:</span><span className="font-semibold">{form.visitType}</span></div>
                 </div>
@@ -137,7 +152,6 @@ export default function BookingSection() {
               <motion.form key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onSubmit={handleSubmit} className="space-y-4">
                 <h3 className="text-xl font-black text-slate-900 mb-5 flex items-center gap-2"><Calendar className="w-5 h-5 text-blue-600" />نموذج حجز موعد</h3>
 
-                {/* Personal Info */}
                 <div className="p-4 rounded-2xl bg-blue-50/50 space-y-3">
                   <p className="text-xs font-bold text-blue-700 flex items-center gap-1"><User className="w-3.5 h-3.5" />البيانات الشخصية</p>
                   <input className={`input-hospital ${errors.name ? 'border-red-400 bg-red-50' : ''}`} placeholder="الاسم رباعي *" value={form.name} onChange={e => set('name', e.target.value)} />
@@ -146,7 +160,10 @@ export default function BookingSection() {
                       <input className={`input-hospital ${errors.nationalId ? 'border-red-400 bg-red-50' : ''}`} placeholder="الرقم القومي (14 رقم) *" maxLength={14} value={form.nationalId} onChange={e => set('nationalId', e.target.value.replace(/\D/g, ''))} />
                       {errors.nationalId && <p className="text-red-500 text-xs mt-1">الرقم القومي يجب أن يكون 14 رقم</p>}
                     </div>
-                    <input className={`input-hospital ${errors.phone ? 'border-red-400 bg-red-50' : ''}`} placeholder="رقم الهاتف *" maxLength={11} value={form.phone} onChange={e => set('phone', e.target.value.replace(/\D/g, ''))} />
+                    <div>
+                      <input className={`input-hospital ${errors.phone ? 'border-red-400 bg-red-50' : ''}`} placeholder="رقم الهاتف *" maxLength={11} value={form.phone} onChange={e => set('phone', e.target.value.replace(/\D/g, ''))} />
+                      {errors.phone && <p className="text-red-500 text-xs mt-1">رقم الهاتف غير صالح (يجب أن يبدأ بـ 01 ويتكون من 11 رقم)</p>}
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <input className="input-hospital" placeholder="البريد الإلكتروني" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
@@ -155,23 +172,22 @@ export default function BookingSection() {
                   <div className="grid grid-cols-2 gap-3">
                     <select className={`input-hospital ${errors.gender ? 'border-red-400 bg-red-50' : ''}`} value={form.gender} onChange={e => set('gender', e.target.value)}>
                       <option value="">الجنس *</option>
-                      <option>ذكر</option>
-                      <option>أنثى</option>
+                      <option value="MALE">ذكر</option>
+                      <option value="FEMALE">أنثى</option>
                     </select>
                     <input className="input-hospital" placeholder="رقم التأمين (اختياري)" value={form.insurance} onChange={e => set('insurance', e.target.value)} />
                   </div>
                 </div>
 
-                {/* Appointment Info */}
                 <div className="p-4 rounded-2xl bg-teal-50/50 space-y-3">
                   <p className="text-xs font-bold text-teal-700 flex items-center gap-1"><Stethoscope className="w-3.5 h-3.5" />بيانات الموعد</p>
                   <select className={`input-hospital ${errors.department ? 'border-red-400 bg-red-50' : ''}`} value={form.department} onChange={e => { set('department', e.target.value); set('doctor', ''); }}>
                     <option value="">اختر القسم الطبي *</option>
-                    {departments.map(d => <option key={d}>{d}</option>)}
+                    {dbDepts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                   <select className="input-hospital" value={form.doctor} onChange={e => set('doctor', e.target.value)} disabled={!form.department}>
                     <option value="">اختر الطبيب (اختياري)</option>
-                    {availableDoctors.map(d => <option key={d}>{d}</option>)}
+                    {dbDoctors.map(d => <option key={d.id} value={d.id}>{d.user?.name}</option>)}
                   </select>
                   <div className="grid grid-cols-2 gap-3">
                     <select className={`input-hospital ${errors.visitType ? 'border-red-400 bg-red-50' : ''}`} value={form.visitType} onChange={e => set('visitType', e.target.value)}>
@@ -183,7 +199,7 @@ export default function BookingSection() {
                   <div className="relative">
                     <select className={`input-hospital ${errors.time ? 'border-red-400 bg-red-50' : ''}`} value={form.time} onChange={e => set('time', e.target.value)}>
                       <option value="">اختر وقت الموعد *</option>
-                      {timeSlots.map(t => <option key={t}>{t}</option>)}
+                      {timeSlots.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                   <textarea className="input-hospital h-20 resize-none" placeholder="ملاحظات إضافية أو وصف الحالة (اختياري)" value={form.notes} onChange={e => set('notes', e.target.value)} />

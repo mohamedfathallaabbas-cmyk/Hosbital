@@ -163,12 +163,21 @@ export default function Landing() {
         dateOfBirth: form.dateOfBirth || undefined,
         gender:      form.gender || undefined,
       });
-      // Auto-login: store token & redirect
-      sessionStorage.setItem('hospitalUser', JSON.stringify(res.data.user));
+      
+      const { token, user } = res.data;
+      login({
+        id: user.id,
+        role: 'patient',
+        name: user.name,
+        email: user.email,
+        token: token,
+        patientId: user.patientId
+      });
+
       setShowSignUp(false);
       navigate('/patient/dashboard');
     } catch (err) {
-      setSignUpError(err.response?.data?.error || 'حدث خطأ، يرجى المحاولة مرة أخرى');
+      setSignUpError(err.response?.data?.message || err.response?.data?.error || 'حدث خطأ، يرجى المحاولة مرة أخرى');
     } finally {
       setSubmitting(false);
     }
@@ -513,7 +522,7 @@ export default function Landing() {
       </section>
 
       {/* Booking Section */}
-      <BookingSection />
+      <BookingSection onNeedLogin={() => { setShowPatientLogin(true); setLoginError(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
 
       {/* Footer */}
       <footer className="bg-dark-gradient py-12 border-t border-white/10">

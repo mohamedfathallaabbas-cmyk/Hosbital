@@ -5,6 +5,35 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Public endpoints for landing page booking form
+router.get('/departments', async (req, res) => {
+  try {
+    const departments = await prisma.department.findMany({
+      include: {
+        _count: { select: { doctors: true } }
+      },
+      orderBy: { name: 'asc' }
+    });
+    res.json(departments);
+  } catch (err) {
+    res.status(500).json({ error: 'خطأ في جلب الأقسام' });
+  }
+});
+
+router.get('/doctors', async (req, res) => {
+  try {
+    const doctors = await prisma.doctor.findMany({
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true, isActive: true } },
+        department: true
+      }
+    });
+    res.json(doctors);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب بيانات الأطباء' });
+  }
+});
+
 // كل مسارات الإدارة محمية بالـ JWT ودور ADMIN
 router.use(authenticate);
 
@@ -297,19 +326,6 @@ router.get('/users/:id', async (req, res) => {
 // ========================
 // إدارة الأطباء
 // ========================
-router.get('/doctors', async (req, res) => {
-  try {
-    const doctors = await prisma.doctor.findMany({
-      include: {
-        user: { select: { id: true, name: true, email: true, phone: true, isActive: true } },
-        department: true
-      }
-    });
-    res.json(doctors);
-  } catch (error) {
-    res.status(500).json({ error: 'خطأ في جلب بيانات الأطباء' });
-  }
-});
 
 router.patch('/doctors/:id', requireRole('ADMIN', 'FINANCIAL_MANAGER'), async (req, res) => {
   const { specialty, consultFee, clinicNumber, departmentId } = req.body;
@@ -336,19 +352,6 @@ router.patch('/doctors/:id', requireRole('ADMIN', 'FINANCIAL_MANAGER'), async (r
 // ========================
 // إدارة الأقسام
 // ========================
-router.get('/departments', async (req, res) => {
-  try {
-    const departments = await prisma.department.findMany({
-      include: {
-        _count: { select: { doctors: true } }
-      },
-      orderBy: { name: 'asc' }
-    });
-    res.json(departments);
-  } catch (err) {
-    res.status(500).json({ error: 'خطأ في جلب الأقسام' });
-  }
-});
 
 router.post('/departments', requireRole('ADMIN'), async (req, res) => {
   const { name, description } = req.body;

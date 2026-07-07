@@ -184,6 +184,28 @@ function AppointmentsPage() {
   useEffect(() => {
     fetchAppts();
     api.get('/admin/departments').then(r => setDepartments(r.data)).catch(console.error);
+
+    const pending = localStorage.getItem('pending_booking');
+    if (pending) {
+      localStorage.removeItem('pending_booking');
+      try {
+        const parsed = JSON.parse(pending);
+        api.post('/appointments', {
+          departmentId: parsed.department,
+          doctorId: parsed.doctor ? parseInt(parsed.doctor) : undefined,
+          date: parsed.date,
+          timeSlot: parsed.time,
+          type: parsed.visitType === 'كشف جديد' ? 'CHECKUP' : 'FOLLOWUP'
+        }).then(() => {
+          addToast('تمت جدولة طلب الحجز المعلق تلقائياً بنجاح ✓', 'success');
+          fetchAppts();
+        }).catch(err => {
+          addToast(err.response?.data?.error || 'فشل في جدولة الحجز المعلق تلقائياً', 'error');
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }, []);
 
   const fetchAppts = () => {
