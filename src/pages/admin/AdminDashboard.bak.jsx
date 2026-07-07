@@ -19,7 +19,7 @@ import { EGYPTIAN_DOCTORS, EGYPTIAN_PATIENTS, DEPARTMENTS } from '../../lib/egyp
 const sidebarLinks = [
   { icon: LayoutDashboard, label: 'لوحة التحكم', path: '/admin/dashboard' },
   { icon: Stethoscope, label: 'إدارة الأطباء', path: '/admin/doctors' },
-  { icon: Users, label: 'إدارة المرضى', path: '/admin/patients' },
+  { icon: Users, label: 'إدارة المستخدمين', path: '/admin/patients' },
   { icon: Building2, label: 'إدارة الأقسام', path: '/admin/departments' },
   { icon: Calendar, label: 'إدارة المواعيد', path: '/admin/appointments' },
   { icon: Bed, label: 'إدارة الأسرة', path: '/admin/beds' },

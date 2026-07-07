@@ -14,6 +14,23 @@ const blogs = [
 ];
 
 export default function BlogScroll() {
+  const [blogsList] = useState(() => {
+    const stored = localStorage.getItem('hospital_blog_posts');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const published = parsed.filter(p => p.status === 'published').map(p => ({
+          title: p.title,
+          category: p.category,
+          date: p.date,
+          img: p.img || 'https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=400&h=250&fit=crop',
+          readTime: '5 دقائق'
+        }));
+        if (published.length > 0) return published;
+      } catch {}
+    }
+    return blogs;
+  });
   const scrollRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -65,7 +82,7 @@ export default function BlogScroll() {
           onMouseLeave={stopDrag}
         >
           <style>{`.blog-scroll::-webkit-scrollbar { display: none; }`}</style>
-          {blogs.map((blog, i) => (
+          {blogsList.map((blog, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 20 }}

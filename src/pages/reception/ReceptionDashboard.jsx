@@ -5,8 +5,9 @@ import api from '../../lib/api';
 import {
   LayoutDashboard, ClipboardList, Activity, Send,
   Upload, Calendar, LogOut, HeartPulse, CheckCircle, XCircle,
-  Clock, Search, Menu, X, UserPlus, Eye, Stethoscope, Edit, Users, Receipt, Printer
+  Clock, Search, Menu, X, User, UserPlus, Eye, Stethoscope, Edit, Users, Receipt, Printer
 } from 'lucide-react';
+import ProfilePage from '../../components/hospital/ProfilePage';
 import PrintTemplate from '../../components/hospital/PrintTemplate';
 import Topbar from '../../components/hospital/Topbar';
 import StatCard from '../../components/hospital/StatCard';
@@ -22,6 +23,7 @@ const sidebarLinks = [
   { icon: Users, label: 'قائمة الانتظار', path: '/reception/queue' },
   { icon: UserPlus, label: 'مريض مباشر', path: '/reception/walkin' },
   { icon: Activity, label: 'العلامات الحيوية', path: '/reception/vitals' },
+  { icon: User, label: 'الملف الشخصي', path: '/reception/profile' },
 ];
 
 function BookingsPage() {
@@ -54,7 +56,7 @@ function BookingsPage() {
         date: new Date(apt.date).toISOString().split('T')[0],
         time: apt.timeSlot || '00:00',
         type: apt.type,
-        status: apt.status === 'SCHEDULED' ? 'pending' : apt.status === 'CANCELLED' ? 'rejected' : 'approved'
+        status: apt.status === 'SCHEDULED' ? 'pending' : (apt.status === 'CANCELLED' || apt.status === 'REJECTED') ? 'rejected' : 'approved'
       }));
       setBookings(formatted);
       setInvoices(invRes.data?.data || invRes.data || []);
@@ -243,26 +245,7 @@ function BookingsPage() {
       )}
 
       {activeTab === 'queue' && (
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
-          <table className="hospital-table">
-            <thead>
-              <tr><th>المريض</th><th>الطبيب</th><th>القسم</th><th>الحالة في الطابور</th><th>إجراء</th></tr>
-            </thead>
-            <tbody>
-              {bookings.filter(b => b.status === 'approved').map(b => (
-                <tr key={b.id}>
-                  <td>{b.patient}</td>
-                  <td>{b.doctor}</td>
-                  <td><span className="badge-info">{b.dept}</span></td>
-                  <td><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> في انتظار الطبيب</span></td>
-                  <td>
-                    <button onClick={() => sendToDoctor(b)} className="px-3 py-1.5 rounded-lg bg-teal-50 text-teal-600 font-bold text-xs">إرسال للطبيب</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ReceptionQueue />
       )}
 
       {activeTab === 'billing' && (
@@ -818,6 +801,7 @@ export default function ReceptionDashboard() {
           <Route path="queue" element={<ReceptionQueue />} />
           <Route path="vitals" element={<VitalsPage />} />
           <Route path="walkin" element={<WalkInPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<ReceptionHome />} />
         </Routes>
       </main>

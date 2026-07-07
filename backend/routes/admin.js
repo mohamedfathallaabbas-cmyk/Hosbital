@@ -119,12 +119,33 @@ router.post('/users', requireRole('ADMIN'), async (req, res) => {
   const { name, email, password, role, phone, specialty, departmentId } = req.body;
   try {
     const hashed = await bcrypt.hash(password || '123456', 10);
+    const isStaffRole = ['RECEPTION', 'PHARMACIST', 'LAB_TECH', 'NURSE', 'FINANCIAL_MANAGER', 'STAFF', 'ADMIN'].includes(role);
     const user = await prisma.user.create({
       data: {
         name, email, password: hashed, role, phone,
-        ...(role === 'DOCTOR' && specialty && departmentId ? {
+        ...(role === 'DOCTOR' ? {
           doctorProfile: {
-            create: { specialty, consultFee: 350, departmentId: parseInt(departmentId) }
+            create: { 
+              specialty: specialty || 'عام', 
+              consultFee: 350, 
+              departmentId: departmentId ? parseInt(departmentId) : (await prisma.department.findFirst())?.id || 1 
+            }
+          }
+        } : {}),
+        ...(role === 'PATIENT' ? {
+          patientProfile: {
+            create: {}
+          }
+        } : {}),
+        ...(isStaffRole ? {
+          staffProfile: {
+            create: {
+              category: role === 'LAB_TECH' ? 'LAB_STAFF' : role === 'PHARMACIST' ? 'PHARMACY_STAFF' : 'ADMIN_STAFF',
+              jobTitle: role === 'FINANCIAL_MANAGER' ? 'مدير مالي' : role === 'RECEPTION' ? 'استقبال' : role === 'PHARMACIST' ? 'صيدلي' : role === 'LAB_TECH' ? 'فني مختبر' : 'موظف',
+              shift: 'صباحي',
+              salary: 0,
+              allowances: 0
+            }
           }
         } : {})
       },
@@ -132,6 +153,7 @@ router.post('/users', requireRole('ADMIN'), async (req, res) => {
     });
     res.status(201).json({ message: 'تم إنشاء المستخدم بنجاح', user });
   } catch (err) {
+    console.error(err);
     if (err.code === 'P2002') return res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
     res.status(500).json({ error: 'خطأ في إنشاء المستخدم' });
   }
@@ -190,11 +212,66 @@ router.patch('/users/:id/reset-password', requireRole('ADMIN'), async (req, res)
 
 router.delete('/users/:id', requireRole('ADMIN'), async (req, res) => {
   const { id } = req.params;
+  const userId = parseInt(id);
   try {
-    await prisma.user.delete({ where: { id: parseInt(id) } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        staffProfile: true,
+        doctorProfile: true,
+        patientProfile: true
+      }
+    });
+
+    if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+
+    await prisma.$transaction(async (tx) => {
+      // 1. If it's a staff member
+      if (user.staffProfile) {
+        const staffId = user.staffProfile.id;
+        await tx.payrollItem.deleteMany({ where: { payroll: { is: { employeeId: staffId } } } });
+        await tx.payroll.deleteMany({ where: { employeeId: staffId } });
+        await tx.salaryAdjustment.deleteMany({ where: { employeeId: staffId } });
+        await tx.leaveRequest.deleteMany({ where: { employeeId: staffId } });
+        await tx.attendance.deleteMany({ where: { userId } });
+        await tx.nursingAssignment.deleteMany({ where: { nurseId: staffId } });
+        await tx.staff.delete({ where: { id: staffId } });
+      }
+
+      // 2. If it's a doctor
+      if (user.doctorProfile) {
+        const doctorId = user.doctorProfile.id;
+        await tx.admission.deleteMany({ where: { doctorId } });
+        await tx.appointment.deleteMany({ where: { doctorId } });
+        await tx.prescription.deleteMany({ where: { doctorId } });
+        await tx.doctor.delete({ where: { id: doctorId } });
+      }
+
+      // 3. If it's a patient
+      if (user.patientProfile) {
+        const patientId = user.patientProfile.id;
+        await tx.invoiceItem.deleteMany({ where: { invoice: { is: { patientId } } } });
+        await tx.payment.deleteMany({ where: { invoice: { is: { patientId } } } });
+        await tx.invoice.deleteMany({ where: { patientId } });
+        await tx.admission.deleteMany({ where: { patientId } });
+        await tx.appointment.deleteMany({ where: { patientId } });
+        await tx.radiologyRecord.deleteMany({ where: { patientId } });
+        await tx.patientFile.deleteMany({ where: { patientId } });
+        await tx.patient.delete({ where: { id: patientId } });
+      }
+
+      // 4. Clean up notifications and audit logs
+      await tx.auditLog.deleteMany({ where: { userId } });
+      await tx.notification.deleteMany({ where: { userId } });
+
+      // 5. Delete User itself
+      await tx.user.delete({ where: { id: userId } });
+    });
+
     res.json({ message: 'تم حذف المستخدم بنجاح' });
   } catch (err) {
-    res.status(500).json({ error: 'خطأ في حذف المستخدم' });
+    console.error('Error deleting user:', err);
+    res.status(500).json({ error: 'خطأ في حذف المستخدم من النظام' });
   }
 });
 
@@ -214,6 +291,45 @@ router.get('/users/:id', async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: 'خطأ في جلب المستخدم' });
+  }
+});
+
+// ========================
+// إدارة الأطباء
+// ========================
+router.get('/doctors', async (req, res) => {
+  try {
+    const doctors = await prisma.doctor.findMany({
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true, isActive: true } },
+        department: true
+      }
+    });
+    res.json(doctors);
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في جلب بيانات الأطباء' });
+  }
+});
+
+router.patch('/doctors/:id', requireRole('ADMIN', 'FINANCIAL_MANAGER'), async (req, res) => {
+  const { specialty, consultFee, clinicNumber, departmentId } = req.body;
+  try {
+    const updated = await prisma.doctor.update({
+      where: { id: parseInt(req.params.id) },
+      data: {
+        ...(specialty && { specialty }),
+        ...(consultFee !== undefined && { consultFee: parseFloat(consultFee) || 0 }),
+        ...(clinicNumber !== undefined && { clinicNumber }),
+        ...(departmentId && { departmentId: parseInt(departmentId) })
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true, isActive: true } },
+        department: true
+      }
+    });
+    res.json({ message: 'تم تحديث بيانات الطبيب بنجاح', doctor: updated });
+  } catch (error) {
+    res.status(500).json({ error: 'خطأ في تحديث بيانات الطبيب' });
   }
 });
 
@@ -287,6 +403,149 @@ router.get('/activity', async (req, res) => {
     res.json(activities);
   } catch (err) {
     res.status(500).json({ error: 'خطأ في جلب سجل النشاطات' });
+  }
+});
+
+// ========================
+// إدارة الأسرة
+// ========================
+router.get('/beds', async (req, res) => {
+  try {
+    const beds = await prisma.bed.findMany({
+      include: {
+        room: {
+          include: {
+            ward: {
+              include: {
+                department: true
+              }
+            }
+          }
+        },
+        admissions: {
+          where: { dischargedAt: null },
+          include: {
+            patient: {
+              include: {
+                user: { select: { name: true } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const formatted = beds.map(b => {
+      const activeAdmission = b.admissions[0];
+      let rawNumber = b.bedNumber;
+      let status = b.isOccupied ? 'occupied' : 'available';
+      
+      if (rawNumber.includes('#')) {
+        const parts = rawNumber.split('#');
+        rawNumber = parts[0];
+        status = parts[1];
+      }
+
+      return {
+        id: b.id,
+        number: rawNumber,
+        dept: b.room?.ward?.name || b.room?.ward?.department?.name || 'قسم عام',
+        floor: b.room?.roomNumber || 'الأول',
+        status: status,
+        patient: activeAdmission?.patient?.user?.name || '',
+        since: activeAdmission?.admittedAt ? new Date(activeAdmission.admittedAt).toISOString().split('T')[0] : '',
+        type: b.room?.type || 'عادي'
+      };
+    });
+
+    res.json(formatted);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطأ في جلب بيانات الأسرة' });
+  }
+});
+
+router.post('/beds', requireRole('ADMIN'), async (req, res) => {
+  const { number, dept, floor, status, type } = req.body;
+  try {
+    let ward = await prisma.ward.findFirst({
+      where: { name: dept }
+    });
+    if (!ward) {
+      const defaultDept = await prisma.department.findFirst() || await prisma.department.create({ data: { name: 'قسم عام', description: 'قسم عام للمستشفى' } });
+      ward = await prisma.ward.create({
+        data: {
+          name: dept,
+          type: 'GENERAL',
+          capacity: 10,
+          departmentId: defaultDept.id
+        }
+      });
+    }
+
+    let room = await prisma.room.findFirst({
+      where: { roomNumber: floor, wardId: ward.id }
+    });
+    if (!room) {
+      room = await prisma.room.create({
+        data: {
+          roomNumber: floor,
+          type: type || 'عادي',
+          pricePerDay: 500,
+          wardId: ward.id
+        }
+      });
+    }
+
+    const dbBedNumber = status === 'maintenance' ? `${number}#maintenance` : number;
+    const bed = await prisma.bed.create({
+      data: {
+        bedNumber: dbBedNumber,
+        roomId: room.id,
+        isOccupied: status === 'occupied'
+      }
+    });
+
+    res.status(201).json({ message: 'تم إضافة السرير بنجاح', bed });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطأ في إضافة السرير' });
+  }
+});
+
+router.patch('/beds/:id', requireRole('ADMIN'), async (req, res) => {
+  const { number, dept, floor, status, type } = req.body;
+  try {
+    const bedId = parseInt(req.params.id);
+    const existingBed = await prisma.bed.findUnique({ where: { id: bedId } });
+    if (!existingBed) return res.status(404).json({ error: 'السرير غير موجود' });
+
+    const finalNumber = number || existingBed.bedNumber.split('#')[0];
+    const dbBedNumber = status === 'maintenance' ? `${finalNumber}#maintenance` : finalNumber;
+
+    const updated = await prisma.bed.update({
+      where: { id: bedId },
+      data: {
+        bedNumber: dbBedNumber,
+        isOccupied: status === 'occupied'
+      }
+    });
+
+    res.json({ message: 'تم تحديث السرير بنجاح', bed: updated });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطأ في تحديث السرير' });
+  }
+});
+
+router.delete('/beds/:id', requireRole('ADMIN'), async (req, res) => {
+  try {
+    const bedId = parseInt(req.params.id);
+    await prisma.bed.delete({ where: { id: bedId } });
+    res.json({ message: 'تم حذف السرير بنجاح' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'خطأ في حذف السرير' });
   }
 });
 

@@ -13,19 +13,18 @@ import AdminHome from "./components/AdminHome";
 import DoctorsManagement from "./components/DoctorsManagement";
 import PatientsManagement from "./components/PatientsManagement";
 import DepartmentsManagement from "./components/DepartmentsManagement";
-import AppointmentsManagement from "./components/AppointmentsManagement";
 import BedsManagement from "./components/BedsManagement";
 import BlogManagement from "./components/BlogManagement";
 import EmployeesManagement from "./components/EmployeesManagement";
 import RequestsManagement from "./components/RequestsManagement";
+import ProfilePage from "../../components/hospital/ProfilePage";
 
 const sidebarLinks = [
   { icon: LayoutDashboard, label: 'لوحة التحكم', path: '/admin/dashboard' },
   { icon: Stethoscope, label: 'إدارة الأطباء', path: '/admin/doctors' },
-  { icon: Users, label: 'إدارة المرضى', path: '/admin/patients' },
+  { icon: Users, label: 'إدارة المستخدمين', path: '/admin/patients' },
   { icon: UserCog, label: 'إدارة الموظفين', path: '/admin/employees' },
   { icon: Building2, label: 'إدارة الأقسام', path: '/admin/departments' },
-  { icon: Calendar, label: 'إدارة المواعيد', path: '/admin/appointments' },
   { icon: Bed, label: 'إدارة الأسرة', path: '/admin/beds' },
   { icon: BookOpen, label: 'المدونة والمحتوى', path: '/admin/blog' },
   { icon: Bell, label: 'الطلبات والموافقات', path: '/admin/requests' },
@@ -37,7 +36,22 @@ export default function AdminDashboard() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
   const handleLogout = () => { sessionStorage.removeItem('hospitalUser'); sessionStorage.removeItem('staff_portal_authorized'); navigate('/'); };
-  const currentTitle = sidebarLinks.find(l => l.path === location.pathname)?.label || 'لوحة التحكم';
+  const currentPrefix = location.pathname.startsWith('/manager') ? '/manager' : '/admin';
+  const isFinance = user.role === 'FINANCIAL_MANAGER';
+  const filteredSidebarLinks = sidebarLinks.filter(link => {
+    if (isFinance) {
+      return ['/admin/dashboard', '/admin/doctors', '/admin/employees'].includes(link.path);
+    }
+    return true;
+  });
+  const links = [
+    ...filteredSidebarLinks.map(link => ({
+      ...link,
+      path: link.path.replace('/admin', currentPrefix)
+    })),
+    { icon: User, label: 'الملف الشخصي', path: `${currentPrefix}/profile` }
+  ];
+  const currentTitle = links.find(l => l.path === location.pathname)?.label || 'لوحة التحكم';
 
   return (
     <div className="flex min-h-screen font-cairo" dir="rtl">
@@ -49,11 +63,11 @@ export default function AdminDashboard() {
         <div className="mx-4 mt-4 p-3 rounded-xl" style={{ background: 'rgba(139,92,246,0.15)' }}>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>{user.name?.charAt(0) || 'إ'}</div>
-            <div><div className="text-white text-sm font-semibold truncate max-w-36">{user.name}</div><div className="text-purple-300 text-xs">مسؤول النظام</div></div>
+            <div><div className="text-white text-sm font-semibold truncate max-w-36">{user.name}</div><div className="text-purple-300 text-xs">{user.role === 'FINANCIAL_MANAGER' ? 'المدير المالي' : 'مسؤول النظام'}</div></div>
           </div>
         </div>
         <nav className="flex-1 p-3 mt-2">
-          {sidebarLinks.map((item, i) => {
+          {links.map((item, i) => {
             const isActive = location.pathname === item.path;
             return <Link key={i} to={item.path} className={`sidebar-item ${isActive ? 'active' : ''}`} style={isActive ? { borderColor: '#8b5cf6' } : {}}><item.icon className="w-5 h-5" style={{ color: isActive ? '#8b5cf6' : undefined }} /><span>{item.label}</span></Link>;
           })}
@@ -69,13 +83,17 @@ export default function AdminDashboard() {
           <Route index element={<AdminHome />} />
           <Route path="dashboard" element={<AdminHome />} />
           <Route path="doctors" element={<DoctorsManagement />} />
-          <Route path="patients" element={<PatientsManagement />} />
+          {!isFinance && (
+            <>
+              <Route path="patients" element={<PatientsManagement />} />
+              <Route path="departments" element={<DepartmentsManagement />} />
+              <Route path="beds" element={<BedsManagement />} />
+              <Route path="blog" element={<BlogManagement />} />
+              <Route path="requests" element={<RequestsManagement />} />
+            </>
+          )}
           <Route path="employees" element={<EmployeesManagement />} />
-          <Route path="departments" element={<DepartmentsManagement />} />
-          <Route path="appointments" element={<AppointmentsManagement />} />
-          <Route path="beds" element={<BedsManagement />} />
-          <Route path="blog" element={<BlogManagement />} />
-          <Route path="requests" element={<RequestsManagement />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<AdminHome />} />
         </Routes>
       </main>

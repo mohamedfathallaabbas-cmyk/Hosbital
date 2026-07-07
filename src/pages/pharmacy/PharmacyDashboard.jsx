@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
-import { Pill, CheckCircle, Clock, Package, AlertTriangle, Menu, LogOut, Search, Droplets, SendHorizonal, Plus, X, ShoppingCart, ClipboardList } from 'lucide-react';
+import { Pill, CheckCircle, Clock, Package, AlertTriangle, Menu, LogOut, Search, Droplets, SendHorizonal, Plus, X, ShoppingCart, ClipboardList, User } from 'lucide-react';
+import ProfilePage from '../../components/hospital/ProfilePage';
 import Topbar from '../../components/hospital/Topbar';
 import Modal from '../../components/hospital/Modal';
 import { ToastContainer } from '../../components/hospital/Toast';
@@ -464,7 +465,8 @@ export default function PharmacyDashboard() {
   const sidebarLinks = [
     { icon: Pill, label: 'صرف الروشتات', path: '/pharmacy/dashboard' },
     { icon: Package, label: 'جرد الأدوية', path: '/pharmacy/inventory' },
-    { icon: ClipboardList, label: 'طلبات التزويد', path: '/pharmacy/requests' }
+    { icon: ClipboardList, label: 'طلبات التزويد', path: '/pharmacy/requests' },
+    { icon: User, label: 'الملف الشخصي', path: '/pharmacy/profile' }
   ];
 
   return (
@@ -514,6 +516,7 @@ export default function PharmacyDashboard() {
           <Route path="dashboard" element={<PharmacyHome />} />
           <Route path="inventory" element={<PharmacyInventory />} />
           <Route path="requests" element={<PharmacyRequests />} />
+          <Route path="profile" element={<ProfilePage />} />
         </Routes>
       </main>
       <style>{`@media (max-width: 768px) { #phar-main { margin-right: 0 !important; } }`}</style>

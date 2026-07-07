@@ -59,7 +59,11 @@ export default function ReceptionQueue() {
       const mapped = list
         .filter(apt => {
           const aptDateStr = new Date(apt.date).toISOString().split('T')[0];
-          return aptDateStr === todayStr && ['WAITING', 'IN_PROGRESS', 'COMPLETED'].includes(apt.status);
+          const isToday = aptDateStr === todayStr;
+          return (
+            (apt.status === 'WAITING' || apt.status === 'IN_PROGRESS') ||
+            (apt.status === 'COMPLETED' && isToday)
+          );
         })
         .map(apt => {
           let timeFormatted = '09:00';

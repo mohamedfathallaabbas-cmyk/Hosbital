@@ -13,6 +13,7 @@ import StatCard from '../../components/hospital/StatCard';
 import Modal from '../../components/hospital/Modal';
 import { ToastContainer } from '../../components/hospital/Toast';
 import { useToast } from '../../hooks/useToast';
+import ProfilePage from '../../components/hospital/ProfilePage';
 
 function LabDashboard() {
   const [orders, setOrders] = useState([]);
@@ -23,6 +24,7 @@ function LabDashboard() {
   const [printData, setPrintData] = useState(null);
   const { toasts, addToast, removeToast } = useToast();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('orders');
 
   const user = (() => {
     try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; }
@@ -97,11 +99,21 @@ function LabDashboard() {
           </div>
         </div>
 
-        <nav className="flex-1 p-3 mt-2">
-          <div className="sidebar-item active">
+        <nav className="flex-1 p-3 mt-2 space-y-1">
+          <button 
+            onClick={() => setActiveTab('orders')} 
+            className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'orders' ? 'active' : ''}`}
+          >
             <LayoutDashboard className="w-5 h-5" />
             <span>طلبات التحاليل</span>
-          </div>
+          </button>
+          <button 
+            onClick={() => setActiveTab('profile')} 
+            className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'profile' ? 'active' : ''}`}
+          >
+            <User className="w-5 h-5" />
+            <span>الملف الشخصي</span>
+          </button>
         </nav>
 
         <div className="p-4 border-t border-white/10">
@@ -113,9 +125,12 @@ function LabDashboard() {
 
       {/* Main Content */}
       <main className="flex-1 min-h-screen bg-slate-50" style={{ marginRight: '260px' }}>
-        <Topbar title="إدارة التحاليل والأشعة" roleColor="#14b8a6" />
+        <Topbar title={activeTab === 'profile' ? "الملف الشخصي" : "إدارة التحاليل والأشعة"} roleColor="#14b8a6" />
 
-        <div className="p-6 space-y-6">
+        {activeTab === 'profile' ? (
+          <ProfilePage />
+        ) : (
+          <div className="p-6 space-y-6">
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard title="طلبات معلقة" value={orders.filter(o => o.status === 'PENDING').length.toString()} icon={Clock} gradient="linear-gradient(135deg, #f59e0b, #d97706)" />
@@ -196,6 +211,7 @@ function LabDashboard() {
             </div>
           </div>
         </div>
+        )}
       </main>
 
       {/* Result Modal */}
@@ -205,10 +221,71 @@ function LabDashboard() {
         title={selectedOrder?.status === 'COMPLETED' ? "تفاصيل التحليل" : "إدخال نتيجة التحليل"}
       >
         <div className="p-6 space-y-4">
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-            <p className="text-xs text-slate-400 mb-1">المريض</p>
-            <p className="font-bold text-slate-800">{selectedOrder?.patient?.user?.name}</p>
-            <p className="text-xs text-blue-600 mt-2 font-bold">{selectedOrder?.test?.name}</p>
+          {/* Patient Profile / Card Info */}
+          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800/80 space-y-3">
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-xs text-slate-400 font-medium font-cairo">اسم المريض</span>
+                <h4 className="font-black text-lg text-slate-800 dark:text-slate-200 font-cairo">{selectedOrder?.patient?.user?.name}</h4>
+              </div>
+              <span className="px-3 py-1 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 rounded-lg text-xs font-black font-cairo">
+                ملف طبي نشط
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
+              <div>
+                <span className="text-slate-400 font-cairo">النوع: </span>
+                <span className="text-slate-700 dark:text-slate-300 font-bold font-cairo">
+                  {selectedOrder?.patient?.gender === 'MALE' ? 'ذكر' : selectedOrder?.patient?.gender === 'FEMALE' ? 'أنثى' : 'غير محدد'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-cairo">تاريخ الميلاد: </span>
+                <span className="text-slate-700 dark:text-slate-300 font-bold font-cairo">
+                  {selectedOrder?.patient?.dateOfBirth ? new Date(selectedOrder.patient.dateOfBirth).toLocaleDateString('ar-EG') : 'غير مسجل'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-cairo">الرقم القومي: </span>
+                <span className="text-slate-700 dark:text-slate-300 font-mono font-bold">
+                  {selectedOrder?.patient?.nationalId || 'غير مسجل'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-cairo">رقم الهاتف: </span>
+                <span className="text-slate-700 dark:text-slate-300 font-mono font-bold">
+                  {selectedOrder?.patient?.user?.phone || 'غير مسجل'}
+                </span>
+              </div>
+            </div>
+
+            {/* Chronic Diseases and Allergies */}
+            <div className="border-t border-slate-200/60 dark:border-slate-700/60 pt-3 grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="text-slate-400 block mb-1 font-cairo">الأمراض المزمنة:</span>
+                <p className="text-red-600 dark:text-red-400 font-bold bg-red-50 dark:bg-red-950/20 px-2.5 py-1.5 rounded-lg border border-red-100 dark:border-red-900/30 font-cairo">
+                  {selectedOrder?.patient?.chronicDiseases || 'لا يوجد'}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-1 font-cairo">الحساسية:</span>
+                <p className="text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/20 px-2.5 py-1.5 rounded-lg border border-amber-100 dark:border-amber-900/30 font-cairo">
+                  {selectedOrder?.patient?.allergies || 'لا يوجد'}
+                </p>
+              </div>
+            </div>
+
+            {/* Order/Physician Note */}
+            <div className="border-t border-slate-200/60 dark:border-slate-700/60 pt-3 text-xs">
+              <span className="text-slate-400 block mb-1 font-cairo">الفحص المطلوب وتوجيهات الطبيب:</span>
+              <div className="p-3 bg-blue-50/50 dark:bg-blue-950/10 border border-blue-100/60 dark:border-blue-900/20 rounded-xl">
+                <p className="text-blue-700 dark:text-blue-400 font-black text-sm font-cairo mb-1">{selectedOrder?.test?.name}</p>
+                <p className="text-slate-600 dark:text-slate-400 font-cairo mt-1">
+                  {selectedOrder?.notes || 'لا توجد ملاحظات إضافية من الطبيب.'}
+                </p>
+              </div>
+            </div>
           </div>
 
           <form onSubmit={handleUpdateResult} className="space-y-4">

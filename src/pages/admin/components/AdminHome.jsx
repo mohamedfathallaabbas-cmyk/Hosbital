@@ -17,19 +17,46 @@ export default function AdminHome() {
     api.get('/admin/activity').then(r => setActivity(r.data)).catch(console.error);
   }, []);
 
+  const isFinance = user.role === 'FINANCIAL_MANAGER';
+  const quickLinks = isFinance
+    ? [
+        { to: '/manager/doctors', icon: Stethoscope, label: 'رواتب وعقود الأطباء', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+        { to: '/manager/employees', icon: Users, label: 'إدارة الرواتب والبدلات', color: '#2563eb', bg: 'rgba(37,99,235,0.1)' },
+      ]
+    : [
+        { to: '/admin/doctors', icon: Stethoscope, label: 'إدارة الأطباء', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+        { to: '/admin/patients', icon: Users, label: 'إدارة المستخدمين', color: '#2563eb', bg: 'rgba(37,99,235,0.1)' },
+        { to: '/admin/departments', icon: Building2, label: 'إدارة الأقسام', color: '#14b8a6', bg: 'rgba(20,184,166,0.1)' },
+        { to: '/admin/beds', icon: Bed, label: 'إدارة الأسرة', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+      ];
+
+  const cards = isFinance
+    ? [
+        { title: 'الإيرادات الكلية', value: stats ? `${stats.revenue.toLocaleString()} ج.م` : '...', icon: DollarSign, gradient: 'linear-gradient(135deg, #10b981, #059669)' },
+        { title: 'المستخدمين النشطين', value: stats?.users?.toString() || '...', icon: Users, gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' },
+        { title: 'عدد الأطباء', value: stats?.doctors?.toString() || '...', icon: Stethoscope, gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)' },
+        { title: 'أدوية منخفضة', value: stats?.medicines?.lowStock?.toString() || '...', icon: Pill, gradient: 'linear-gradient(135deg, #ef4444, #dc2626)' },
+      ]
+    : [
+        { title: 'إجمالي المرضى', value: stats?.patients?.toString() || '...', icon: Users, gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' },
+        { title: 'عدد الأطباء', value: stats?.doctors?.toString() || '...', icon: Stethoscope, gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)' },
+        { title: 'المواعيد الكلية', value: stats?.appointments?.total?.toString() || '...', icon: Calendar, gradient: 'linear-gradient(135deg, #2563eb, #1d4ed8)' },
+        { title: 'أدوية منخفضة', value: stats?.medicines?.lowStock?.toString() || '...', icon: Pill, gradient: 'linear-gradient(135deg, #ef4444, #dc2626)' },
+      ];
+
   return (
     <div className="p-6 space-y-8 fade-in">
       {/* Header Banner */}
       <div className="relative overflow-hidden rounded-3xl p-8" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>
         <div className="absolute top-0 left-0 w-48 h-48 rounded-full blur-3xl opacity-20 -translate-x-1/4 -translate-y-1/4" style={{ background: 'white' }} />
         <div className="relative">
-          <p className="text-purple-100 text-sm mb-1">لوحة الإدارة التشغيلية</p>
+          <p className="text-purple-100 text-sm mb-1">{isFinance ? 'لوحة الإدارة المالية والرواتب' : 'لوحة الإدارة التشغيلية'}</p>
           <h2 className="text-white text-3xl font-black mb-2">{user.name || 'المسؤول'}</h2>
           <p className="text-purple-100">
             {stats ? `${stats.users} مستخدم مسجل — ${stats.appointments.total} موعد إجمالي` : 'جاري تحميل الإحصائيات...'}
           </p>
           <div className="flex flex-wrap gap-3 mt-4">
-            {stats && [
+            {stats && !isFinance && [
               { label: 'مواعيد انتظار', count: stats.appointments.pending, color: 'rgba(245,158,11,0.3)' },
               { label: 'مواعيد مكتملة', count: stats.appointments.completed, color: 'rgba(16,185,129,0.3)' },
               { label: 'روشتات معلقة', count: stats.pendingPrescriptions, color: 'rgba(239,68,68,0.3)' },
@@ -44,12 +71,7 @@ export default function AdminHome() {
 
       {/* Live Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { title: 'إجمالي المرضى', value: stats?.patients?.toString() || '...', icon: Users, gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' },
-          { title: 'عدد الأطباء', value: stats?.doctors?.toString() || '...', icon: Stethoscope, gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)' },
-          { title: 'الإيرادات الكلية', value: stats ? `${stats.revenue.toLocaleString()} ج.م` : '...', icon: DollarSign, gradient: 'linear-gradient(135deg, #10b981, #059669)' },
-          { title: 'أدوية منخفضة', value: stats?.medicines?.lowStock?.toString() || '...', icon: Pill, gradient: 'linear-gradient(135deg, #ef4444, #dc2626)' },
-        ].map((s, i) => <StatCard key={i} {...s} index={i} />)}
+        {cards.map((s, i) => <StatCard key={i} {...s} index={i} />)}
       </div>
 
       {/* Quick Links + Activity Feed */}
@@ -57,13 +79,7 @@ export default function AdminHome() {
         {/* Quick Links */}
         <div className="space-y-3">
           <h3 className="font-bold text-slate-900 text-lg">الإدارة السريعة</h3>
-          {[
-            { to: '/admin/doctors', icon: Stethoscope, label: 'إدارة الأطباء', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-            { to: '/admin/patients', icon: Users, label: 'إدارة المرضى', color: '#2563eb', bg: 'rgba(37,99,235,0.1)' },
-            { to: '/admin/departments', icon: Building2, label: 'إدارة الأقسام', color: '#14b8a6', bg: 'rgba(20,184,166,0.1)' },
-            { to: '/admin/appointments', icon: Calendar, label: 'إدارة المواعيد', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-            { to: '/admin/beds', icon: Bed, label: 'إدارة الأسرة', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-          ].map((item, i) => (
+          {quickLinks.map((item, i) => (
             <Link key={i} to={item.to}
               className="flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: item.bg }}>

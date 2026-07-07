@@ -105,9 +105,8 @@ export default function RoleSelect() {
 
   const handleRoleSelect = (role) => {
     setSelectedRole(role);
-    const cred = credentials[role.id];
-    setEmail(cred.email);
-    setPassword(cred.pass);
+    setEmail('');
+    setPassword('');
     setError('');
     setStep('form');
   };
@@ -125,6 +124,14 @@ export default function RoleSelect() {
       });
 
       const { token, user } = response.data;
+      
+      // التحقق من تطابق الدور الفعلي في قاعدة البيانات مع الدور المحدد بالواجهة لمنع التسلل
+      if (selectedRole && user.role.toUpperCase() !== selectedRole.id.toUpperCase()) {
+        setError(`هذا الحساب غير مصرح له بالدخول كـ ${selectedRole.label}. يرجى التحقق من الدور المختار.`);
+        setLoading(false);
+        return;
+      }
+
       const normalizedRole = user.role.toLowerCase();
 
       // تحديد مسار التوجيه بناءً على الدور
@@ -261,6 +268,18 @@ export default function RoleSelect() {
                     {loading ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><ArrowRight className="w-5 h-5" />دخول النظام</>}
                   </button>
                 </form>
+
+                {selectedRole && credentials[selectedRole.id] && (
+                  <div className="mt-4 text-center">
+                    <button type="button" onClick={() => {
+                      const cred = credentials[selectedRole.id];
+                      setEmail(cred.email);
+                      setPassword(cred.pass);
+                    }} className="text-xs text-blue-400 hover:text-blue-300 underline font-medium font-cairo">
+                      🔑 استخدام بيانات الحساب التجريبي للدخول السريع
+                    </button>
+                  </div>
+                )}
 
                 {selectedRole?.id === 'patient' && (
                   <div className="mt-5 text-center">

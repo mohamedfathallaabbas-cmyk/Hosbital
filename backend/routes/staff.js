@@ -212,9 +212,9 @@ router.get('/:id', requireRole('ADMIN', 'OPERATIONS_MANAGER'), async (req, res) 
 
 // POST / - إضافة موظف (Admin)
 router.post('/', requireRole('ADMIN'), async (req, res) => {
-  const { name, email, phone, role, category, jobTitle, shift, salary, nationalId, address, department, allowances } = req.body;
+  const { name, email, phone, role, category, jobTitle, shift, salary, nationalId, address, department, allowances, password } = req.body;
   try {
-    const defaultPassword = await bcrypt.hash(nationalId || '123456', 10);
+    const defaultPassword = await bcrypt.hash(password || nationalId || '123456', 10);
     const newStaff = await prisma.user.create({
       data: {
         name, email, phone, role: role || 'STAFF', password: defaultPassword,
@@ -254,8 +254,8 @@ router.patch('/:id/salary', requireRole('ADMIN', 'FINANCIAL_MANAGER'), async (re
     const updated = await prisma.staff.update({
       where: { id: parseInt(req.params.id) },
       data: { 
-        ...(salary !== undefined && { salary: parseFloat(salary) }),
-        ...(allowances !== undefined && { allowances: parseFloat(allowances) })
+        ...(salary !== undefined && { salary: parseFloat(salary) || 0 }),
+        ...(allowances !== undefined && { allowances: parseFloat(allowances) || 0 })
       }
     });
     res.json({ message: 'تم تحديث الراتب بنجاح', staff: updated });

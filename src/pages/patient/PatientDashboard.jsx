@@ -14,8 +14,8 @@ import { ToastContainer } from '../../components/hospital/Toast';
 import { useToast } from '../../hooks/useToast';
 import MedicalHistory from './MedicalHistory';
 
-const statusLabel = { SCHEDULED: 'قيد المراجعة', WAITING: 'في الانتظار', IN_PROGRESS: 'جارٍ الكشف', COMPLETED: 'مكتمل', CANCELLED: 'ملغى' };
-const statusBadge = { SCHEDULED: 'badge-info', WAITING: 'badge-warning', IN_PROGRESS: 'badge-purple', COMPLETED: 'badge-success', CANCELLED: 'badge-danger' };
+const statusLabel = { SCHEDULED: 'قيد المراجعة', WAITING: 'في الانتظار', IN_PROGRESS: 'جارٍ الكشف', COMPLETED: 'مكتمل', CANCELLED: 'ملغى', REJECTED: 'مرفوض' };
+const statusBadge = { SCHEDULED: 'badge-info', WAITING: 'badge-warning', IN_PROGRESS: 'badge-purple', COMPLETED: 'badge-success', CANCELLED: 'badge-danger', REJECTED: 'badge-danger' };
 
 const getEffectiveStatus = (appt) => {
   if (!appt || !appt.date) return 'SCHEDULED';
@@ -25,7 +25,9 @@ const getEffectiveStatus = (appt) => {
   apptDate.setHours(0, 0, 0, 0);
   
   if (apptDate < today) {
-    return appt.status === 'COMPLETED' ? 'COMPLETED' : 'CANCELLED';
+    if (appt.status === 'COMPLETED') return 'COMPLETED';
+    if (appt.status === 'REJECTED') return 'REJECTED';
+    return 'CANCELLED';
   }
   return appt.status;
 };
