@@ -22,7 +22,6 @@ const sidebarLinks = [
   { icon: ClipboardList, label: 'الحجوزات', path: '/reception/bookings' },
   { icon: Users, label: 'قائمة الانتظار', path: '/reception/queue' },
   { icon: UserPlus, label: 'مريض مباشر', path: '/reception/walkin' },
-  { icon: Activity, label: 'العلامات الحيوية', path: '/reception/vitals' },
   { icon: User, label: 'الملف الشخصي', path: '/reception/profile' },
 ];
 
@@ -422,197 +421,36 @@ function BookingsPage() {
   );
 }
 
-function VitalsPage() {
-  const [appointments, setAppointments] = useState([]);
-  const [saved, setSaved] = useState([]);
-  const [selectedApptId, setSelectedApptId] = useState('');
-  const [form, setForm] = useState({ bp: '', hr: '', temp: '', spo2: '', chronic: '', allergies: '', notes: '' });
-  const [loading, setLoading] = useState(false);
-  const { toasts, addToast, removeToast } = useToast();
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const loadData = useCallback(async () => {
-    try {
-      const res = await api.get('/appointments', { params: { limit: 1000 } });
-      const list = res.data?.data || res.data || [];
-      const todayStr = new Date().toISOString().split('T')[0];
-
-      // 1. Filter today's appointments that are WAITING or IN_PROGRESS (checked-in)
-      const checkedIn = list.filter(apt => {
-        const aptDateStr = new Date(apt.date).toISOString().split('T')[0];
-        return aptDateStr === todayStr && ['WAITING', 'IN_PROGRESS'].includes(apt.status);
-      });
-      setAppointments(checkedIn);
-
-      // 2. Filter today's appointments that have a triage record
-      const todayTriaged = list
-        .filter(apt => {
-          const aptDateStr = new Date(apt.date).toISOString().split('T')[0];
-          return aptDateStr === todayStr && apt.triage;
-        })
-        .map(apt => ({
-          patient: apt.patient?.user?.name || 'مريض مجهول',
-          bp: apt.triage.bloodPressure || '—',
-          hr: apt.triage.heartRate ? `${apt.triage.heartRate} bpm` : '—',
-          temp: apt.triage.temperature ? `${apt.triage.temperature} °C` : '—',
-          spo2: apt.triage.oxygenLevel ? `${apt.triage.oxygenLevel}%` : '—',
-          chronic: apt.patient?.chronicDiseases || 'لا يوجد',
-          allergies: apt.patient?.allergies || 'لا يوجد',
-          time: new Date(apt.triage.createdAt || apt.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-        }));
-      setSaved(todayTriaged);
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!selectedApptId) return addToast('يرجى اختيار مريض من القائمة', 'error');
-    setLoading(true);
-    try {
-      const appt = appointments.find(a => a.id === parseInt(selectedApptId));
-      if (!appt) return;
-
-      // 1. Save triage to backend
-      await api.post(`/appointments/${selectedApptId}/triage`, {
-        bloodPressure: form.bp,
-        heartRate: form.hr ? parseInt(form.hr) : undefined,
-        temperature: form.temp ? parseFloat(form.temp) : undefined,
-        oxygenLevel: form.spo2 ? parseInt(form.spo2) : undefined,
-        priorityLevel: appt.triage?.priorityLevel || 'عادية',
-        notes: form.notes
-      });
-
-      // 2. Update patient profile (chronic diseases and allergies)
-      if (appt.patientId) {
-        await api.patch(`/patients/${appt.patientId}`, {
-          chronicDiseases: form.chronic,
-          allergies: form.allergies
-        });
-      }
-
-      addToast(`تم حفظ التقييم الطبي لـ ${appt.patient?.user?.name} بنجاح ✓`, 'success');
-      setForm({ bp: '', hr: '', temp: '', spo2: '', chronic: '', allergies: '', notes: '' });
-      setSelectedApptId('');
-      loadData();
-    } catch (err) {
-      addToast('حدث خطأ أثناء حفظ البيانات الطبية', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="p-6 fade-in">
-      <div className="section-header"><div className="section-header-line" style={{ background: 'linear-gradient(180deg, #f59e0b, #d97706)' }} /><h3 className="text-xl font-bold">العلامات الحيوية والتاريخ المرضي للعيادات</h3></div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <h4 className="font-bold text-slate-900 mb-5">إدخال جديد</h4>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div>
-              <label className="block text-slate-600 text-sm font-semibold mb-1">اختر المريض (المسجلين اليوم)</label>
-              <select required value={selectedApptId} onChange={e => {
-                const apptId = e.target.value;
-                setSelectedApptId(apptId);
-                const appt = appointments.find(a => a.id === parseInt(apptId));
-                if (appt) {
-                  setForm(p => ({
-                    ...p,
-                    chronic: appt.patient?.chronicDiseases || '',
-                    allergies: appt.patient?.allergies || ''
-                  }));
-                }
-              }} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none focus:border-amber-400">
-                <option value="">اختر مريض...</option>
-                {appointments.map(a => (
-                  <option key={a.id} value={a.id}>{a.patient?.user?.name} — {a.doctor?.user?.name} ({a.doctor?.department?.name})</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { k: 'bp', l: 'ضغط الدم', u: 'mmHg', ph: '120/80' },
-                { k: 'hr', l: 'ضربات القلب', u: 'bpm', ph: '72' },
-                { k: 'temp', l: 'درجة الحرارة', u: '°C', ph: '37.0' },
-                { k: 'spo2', l: 'نسبة الأكسجين', u: '%', ph: '98' },
-              ].map(f => (
-                <div key={f.k}>
-                  <label className="block text-slate-600 text-xs font-semibold mb-1">{f.l} <span className="text-slate-400">({f.u})</span></label>
-                  <input value={form[f.k]} onChange={e => set(f.k, e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:bg-white focus:border-amber-400 outline-none font-cairo" placeholder={f.ph} />
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="col-span-2">
-                <label className="block text-slate-600 text-sm font-semibold mb-1">الأمراض المزمنة</label>
-                <input value={form.chronic} onChange={e => set('chronic', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" placeholder="مثال: سكري، ضغط..." />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-slate-600 text-sm font-semibold mb-1">الحساسية والأدوية الحالية</label>
-                <input value={form.allergies} onChange={e => set('allergies', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" placeholder="مثال: حساسية بنسيلين..." />
-              </div>
-            </div>
-            <div>
-              <label className="block text-slate-600 text-sm font-semibold mb-1">ملاحظات عامة</label>
-              <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 h-20 resize-none font-cairo focus:border-amber-400 outline-none" />
-            </div>
-            <button type="submit" disabled={loading} className="w-full py-3 rounded-xl text-white font-bold font-cairo transition-all" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
-              {loading ? 'جاري الحفظ...' : 'حفظ التقييم الشامل'}
-            </button>
-          </form>
-        </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <h4 className="font-bold text-slate-900 mb-4">آخر التسجيلات اليوم ({saved.length})</h4>
-          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-            {saved.length === 0 ? (
-              <div className="text-center py-16 text-slate-300">لا توجد تسجيلات علامات حيوية حتى الآن اليوم</div>
-            ) : saved.map((r, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-xl bg-slate-50">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="font-medium text-slate-800">{r.patient}</span>
-                  <span className="text-slate-400 text-xs">{r.time}</span>
-                </div>
-                <div className="grid grid-cols-4 gap-2 mb-2">
-                  {[{ l: 'BP', v: r.bp }, { l: 'HR', v: r.hr }, { l: 'Temp', v: r.temp }, { l: 'SpO₂', v: r.spo2 }].map((item, j) => (
-                    <div key={j} className="text-center p-2 bg-white rounded-lg shadow-sm">
-                      <div className="text-xs text-slate-400">{item.l}</div>
-                      <div className="font-bold text-slate-800 text-sm">{item.v}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="text-xs text-slate-500 space-y-0.5 border-t border-slate-100 pt-2 mt-2">
-                  <div><strong>أمراض مزمنة:</strong> {r.chronic}</div>
-                  <div><strong>الحساسية:</strong> {r.allergies}</div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </div>
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
-    </div>
-  );
-}
 
 function WalkInPage() {
   const { toasts, addToast, removeToast } = useToast();
-  const [form, setForm] = useState({ name: '', idNum: '', phone: '', dob: '', blood: 'A+', dept: '', complaint: '' });
+  const [form, setForm] = useState({ name: '', idNum: '', phone: '', dob: '', blood: 'A+', dept: '', complaint: '', admitToBed: false, bedId: '', doctorId: '', nurseId: '' });
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const [registered, setRegistered] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [beds, setBeds] = useState([]);
+  const [doctorsList, setDoctorsList] = useState([]);
+  const [nursesList, setNursesList] = useState([]);
 
   useEffect(() => {
     api.get('/admin/departments').then(res => setDepartments(res.data || [])).catch(console.error);
+    api.get('/admin/beds').then(res => setBeds(res.data || [])).catch(console.error);
+    api.get('/admin/doctors').then(res => setDoctorsList(res.data || [])).catch(console.error);
+    api.get('/staff').then(res => {
+      const list = res.data || [];
+      const nurses = list.filter(s => s.user?.role === 'NURSE');
+      setNursesList(nurses);
+    }).catch(console.error);
   }, []);
 
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!form.dept) return addToast('يرجى اختيار القسم الطبي المطلوب', 'error');
+    if (form.admitToBed && !form.bedId) return addToast('يرجى اختيار السرير المطلوب للتنويم', 'error');
+    if (form.admitToBed && !form.doctorId) return addToast('يرجى اختيار الطبيب المعالج المشرف', 'error');
+    if (form.admitToBed && !form.nurseId) return addToast('يرجى اختيار الممرض الخاص بالمتابعة', 'error');
+
     try {
       // 1. تسجيل المريض
       const patientRes = await api.post('/patients', {
@@ -621,12 +459,29 @@ function WalkInPage() {
         phone: form.phone || undefined,
         bloodType: form.blood,
         dateOfBirth: form.dob || undefined,
-        gender: 'غير حدد'
+        gender: 'MALE'
       });
+      const patientId = patientRes.data.patient.id;
       
-      // 2. حجز الموعد
+      // 2. إذا تم اختيار التنويم، قم بإنشاء سجل التنويم وتعيين الممرض
+      if (form.admitToBed) {
+        await api.post('/admissions', {
+          patientId,
+          doctorId: parseInt(form.doctorId),
+          bedId: parseInt(form.bedId),
+          reason: form.complaint || 'دخول مباشر من الاستقبال'
+        });
+
+        await api.post('/nursing/assignments', {
+          nurseId: parseInt(form.nurseId),
+          bedId: parseInt(form.bedId),
+          shift: 'DAY'
+        });
+      }
+
+      // 3. حجز الموعد
       const aptRes = await api.post('/appointments', {
-        patientId: patientRes.data.patient.id,
+        patientId,
         departmentId: parseInt(form.dept),
         date: new Date().toISOString(),
         type: 'كشف مباشر',
@@ -635,78 +490,115 @@ function WalkInPage() {
 
       const selectedDeptObj = departments.find(d => d.id === parseInt(form.dept));
       const ticket = 'WK-' + aptRes.data.appointment.id;
+      
+      let admitMsg = '';
+      if (form.admitToBed) {
+        const selectedBed = beds.find(b => String(b.id) === String(form.bedId));
+        admitMsg = ` وتم تنويمه بالسرير ${selectedBed?.number || form.bedId}`;
+      }
+
       setRegistered(prev => [...prev, { ...form, deptName: selectedDeptObj?.name || 'عام', ticket, time: aptRes.data.appointment.timeSlot }]);
       
-      setForm({ name: '', idNum: '', phone: '', dob: '', blood: 'A+', dept: '', complaint: '' });
-      addToast(`تم تسجيل المريض ${form.name} بنجاح ✓`, 'success');
+      setForm({ name: '', idNum: '', phone: '', dob: '', blood: 'A+', dept: '', complaint: '', admitToBed: false, bedId: '', doctorId: '', nurseId: '' });
+      addToast(`تم تسجيل المريض ${form.name} بنجاح${admitMsg} ✓`, 'success');
+      
+      // Reload beds to remove the newly occupied bed from list
+      api.get('/admin/beds').then(res => setBeds(res.data || [])).catch(console.error);
     } catch (err) {
       addToast(err.response?.data?.error || 'حدث خطأ أثناء التسجيل', 'error');
     }
   };
 
+  const availableBeds = beds.filter(b => b.status === 'available');
+  const filteredDoctors = doctorsList.filter(d => d.departmentId === parseInt(form.dept));
+
   return (
     <div className="p-6 fade-in">
       <div className="section-header"><div className="section-header-line" style={{ background: 'linear-gradient(180deg, #f59e0b, #d97706)' }} /><h3 className="text-xl font-bold">تسجيل مريض مباشر (Walk-in)</h3></div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <label className="block text-slate-600 text-sm font-semibold mb-1">الاسم الكامل</label>
-                <input required value={form.name} onChange={e => set('name', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
-              </div>
-              <div>
-                <label className="block text-slate-600 text-sm font-semibold mb-1">رقم الهوية / الرقم القومي</label>
-                <input value={form.idNum} onChange={e => set('idNum', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
-              </div>
-              <div>
-                <label className="block text-slate-600 text-sm font-semibold mb-1">رقم الهاتف</label>
-                <input value={form.phone} onChange={e => set('phone', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" placeholder="01xxxxxxxxx" />
-              </div>
-              <div>
-                <label className="block text-slate-600 text-sm font-semibold mb-1">تاريخ الميلاد</label>
-                <input type="date" value={form.dob} onChange={e => set('dob', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
-              </div>
-              <div>
-                <label className="block text-slate-600 text-sm font-semibold mb-1">فصيلة الدم</label>
-                <select value={form.blood} onChange={e => set('blood', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none">
-                  {['A+','A-','B+','B-','O+','O-','AB+','AB-'].map(b => <option key={b}>{b}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-slate-600 text-sm font-semibold mb-1">القسم المطلوب</label>
-                <select required value={form.dept} onChange={e => set('dept', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none">
-                  <option value="">اختر القسم</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className="block text-slate-600 text-sm font-semibold mb-1">الشكوى الرئيسية</label>
-                <textarea required value={form.complaint} onChange={e => set('complaint', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 h-24 resize-none font-cairo outline-none focus:border-amber-400" placeholder="وصف الشكوى..." />
-              </div>
+      <div className="max-w-3xl mx-auto bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <form onSubmit={handleRegister} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-slate-600 text-sm font-semibold mb-1">الاسم الكامل</label>
+              <input required value={form.name} onChange={e => set('name', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
             </div>
-            <button type="submit" className="w-full py-3 rounded-xl text-white font-bold font-cairo" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>تسجيل وإصدار تذكرة انتظار</button>
-          </form>
-        </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <h4 className="font-bold text-slate-900 mb-4">قائمة الانتظار المسجلة ({registered.length})</h4>
-          {registered.length === 0 ? (
-            <div className="text-center py-12 text-slate-300"><UserPlus className="w-12 h-12 mx-auto mb-3" /><p>لا يوجد مرضى مسجلون حالياً</p></div>
-          ) : (
-            <div className="space-y-3">
-              {registered.map((r, i) => (
-                <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 p-4 rounded-xl bg-amber-50 border border-amber-100">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>{r.ticket}</div>
-                  <div className="flex-1">
-                    <p className="font-medium text-slate-800">{r.name}</p>
-                    <p className="text-slate-500 text-xs">{r.deptName} — {r.complaint.slice(0, 30)}...</p>
-                  </div>
-                  <span className="text-slate-400 text-xs">{r.time}</span>
-                </motion.div>
-              ))}
+            <div>
+              <label className="block text-slate-600 text-sm font-semibold mb-1">رقم الهوية / الرقم القومي</label>
+              <input value={form.idNum} onChange={e => set('idNum', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
             </div>
-          )}
-        </div>
+            <div>
+              <label className="block text-slate-600 text-sm font-semibold mb-1">رقم الهاتف</label>
+              <input value={form.phone} onChange={e => set('phone', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" placeholder="01xxxxxxxxx" />
+            </div>
+            <div>
+              <label className="block text-slate-600 text-sm font-semibold mb-1">تاريخ الميلاد</label>
+              <input type="date" value={form.dob} onChange={e => set('dob', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
+            </div>
+            <div>
+              <label className="block text-slate-600 text-sm font-semibold mb-1">فصيلة الدم</label>
+              <select value={form.blood} onChange={e => set('blood', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none">
+                {['A+','A-','B+','B-','O+','O-','AB+','AB-'].map(b => <option key={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-slate-600 text-sm font-semibold mb-1">القسم المطلوب</label>
+              <select required value={form.dept} onChange={e => { set('dept', e.target.value); set('doctorId', ''); }} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none">
+                <option value="">اختر القسم</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-slate-600 text-sm font-semibold mb-1">الشكوى الرئيسية</label>
+              <textarea required value={form.complaint} onChange={e => set('complaint', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 h-24 resize-none font-cairo outline-none focus:border-amber-400" placeholder="وصف الشكوى..." />
+            </div>
+            
+            <div className="col-span-2 flex items-center gap-2 py-2">
+              <input 
+                type="checkbox" 
+                id="admitToBed" 
+                checked={form.admitToBed} 
+                onChange={e => set('admitToBed', e.target.checked)} 
+                className="w-4 h-4 text-amber-500 border-slate-300 rounded focus:ring-amber-400" 
+              />
+              <label htmlFor="admitToBed" className="text-slate-700 text-sm font-bold select-none cursor-pointer">
+                تحويل المريض إلى سرير (تنويم اختياري)
+              </label>
+            </div>
+
+            {form.admitToBed && (
+              <>
+                <div>
+                  <label className="block text-slate-600 text-sm font-semibold mb-1">السرير المتاح للتنويم *</label>
+                  <select required value={form.bedId} onChange={e => set('bedId', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none">
+                    <option value="">اختر سرير...</option>
+                    {availableBeds.map(b => (
+                      <option key={b.id} value={b.id}>{b.dept} — غرفة {b.room} — سرير {b.number}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-600 text-sm font-semibold mb-1">الطبيب المشرف للتنويم *</label>
+                  <select required value={form.doctorId} onChange={e => set('doctorId', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none" disabled={!form.dept}>
+                    <option value="">{form.dept ? 'اختر طبيب...' : 'يرجى اختيار القسم أولاً'}</option>
+                    {filteredDoctors.map(d => (
+                      <option key={d.id} value={d.id}>{d.user?.name} ({d.specialty})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-slate-600 text-sm font-semibold mb-1">الممرض الخاص بالمتابعة *</label>
+                  <select required value={form.nurseId} onChange={e => set('nurseId', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-cairo outline-none">
+                    <option value="">اختر الممرض لمتابعة المريض...</option>
+                    {nursesList.map(n => (
+                      <option key={n.id} value={n.id}>{n.user?.name} ({n.jobTitle || 'ممرض'})</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+          <button type="submit" className="w-full py-3 rounded-xl text-white font-bold font-cairo" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>تسجيل وإصدار تذكرة انتظار</button>
+        </form>
       </div>
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
@@ -739,7 +631,7 @@ function ReceptionHome() {
           { title: 'مرضى مباشرون', value: '4', icon: UserPlus, gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' },
         ].map((s, i) => <StatCard key={i} {...s} index={i} />)}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Link to="/reception/bookings" className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-all cursor-pointer">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ background: 'rgba(245,158,11,0.1)' }}><ClipboardList className="w-6 h-6 text-amber-500" /></div>
           <h3 className="font-bold text-slate-900 mb-1">إدارة الحجوزات</h3>
@@ -749,11 +641,6 @@ function ReceptionHome() {
           <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ background: 'rgba(37,99,235,0.1)' }}><UserPlus className="w-6 h-6 text-blue-600" /></div>
           <h3 className="font-bold text-slate-900 mb-1">مريض مباشر</h3>
           <p className="text-slate-400 text-sm">تسجيل مريض جديد فورياً</p>
-        </Link>
-        <Link to="/reception/vitals" className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition-all cursor-pointer">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ background: 'rgba(20,184,166,0.1)' }}><Activity className="w-6 h-6 text-teal-500" /></div>
-          <h3 className="font-bold text-slate-900 mb-1">العلامات الحيوية</h3>
-          <p className="text-slate-400 text-sm">تسجيل الضغط والحرارة</p>
         </Link>
       </div>
     </div>
@@ -799,7 +686,6 @@ export default function ReceptionDashboard() {
           <Route path="dashboard" element={<ReceptionHome />} />
           <Route path="bookings" element={<BookingsPage />} />
           <Route path="queue" element={<ReceptionQueue />} />
-          <Route path="vitals" element={<VitalsPage />} />
           <Route path="walkin" element={<WalkInPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<ReceptionHome />} />

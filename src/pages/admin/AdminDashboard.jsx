@@ -22,7 +22,6 @@ import ProfilePage from "../../components/hospital/ProfilePage";
 const sidebarLinks = [
   { icon: LayoutDashboard, label: 'لوحة التحكم', path: '/admin/dashboard' },
   { icon: Stethoscope, label: 'إدارة الأطباء', path: '/admin/doctors' },
-  { icon: Users, label: 'إدارة المستخدمين', path: '/admin/patients' },
   { icon: UserCog, label: 'إدارة الموظفين', path: '/admin/employees' },
   { icon: Building2, label: 'إدارة الأقسام', path: '/admin/departments' },
   { icon: Bed, label: 'إدارة الأسرة', path: '/admin/beds' },
@@ -85,7 +84,6 @@ export default function AdminDashboard() {
           <Route path="doctors" element={<DoctorsManagement />} />
           {!isFinance && (
             <>
-              <Route path="patients" element={<PatientsManagement />} />
               <Route path="departments" element={<DepartmentsManagement />} />
               <Route path="beds" element={<BedsManagement />} />
               <Route path="blog" element={<BlogManagement />} />

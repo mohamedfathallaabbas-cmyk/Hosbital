@@ -27,11 +27,7 @@ export default function Topbar({ title, subtitle, roleColor }) {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Search */}
-        <div className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 text-sm min-w-56">
-          <Search className="w-4 h-4 flex-shrink-0" />
-          <span>بحث...</span>
-        </div>
+
 
         {/* Dark mode */}
         <button onClick={() => setDarkMode(!darkMode)}

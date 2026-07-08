@@ -215,19 +215,46 @@ router.post('/', requireRole('ADMIN'), async (req, res) => {
   const { name, email, phone, role, category, jobTitle, shift, salary, nationalId, address, department, allowances, password } = req.body;
   try {
     const defaultPassword = await bcrypt.hash(password || nationalId || '123456', 10);
+    
+    let docDeptId = null;
+    if (role === 'DOCTOR') {
+      const firstDept = await prisma.department.findFirst();
+      docDeptId = firstDept?.id;
+      if (!docDeptId) {
+        return res.status(400).json({ error: 'يرجى إنشاء قسم طبي أولاً قبل إضافة طبيب' });
+      }
+    }
+
     const newStaff = await prisma.user.create({
       data: {
         name, email, phone, role: role || 'STAFF', password: defaultPassword,
         staffProfile: {
           create: {
-            category: category || 'ADMIN_STAFF', jobTitle, shift, salary: salary ? parseFloat(salary) : 0, nationalId, address, department, allowances: allowances ? parseFloat(allowances) : 0
+            category: category || (role === 'DOCTOR' ? 'MEDICAL' : 'ADMIN_STAFF'), 
+            jobTitle: jobTitle || (role === 'DOCTOR' ? 'طبيب' : role === 'ADMIN' ? 'مدير النظام' : ''), 
+            shift, 
+            salary: salary ? parseFloat(salary) : 0, 
+            nationalId, 
+            address, 
+            department, 
+            allowances: allowances ? parseFloat(allowances) : 0
           }
-        }
+        },
+        ...(role === 'DOCTOR' && {
+          doctorProfile: {
+            create: {
+              specialty: jobTitle || 'طبيب عام',
+              departmentId: docDeptId,
+              consultationFee: 300
+            }
+          }
+        })
       },
       include: { staffProfile: true }
     });
     res.status(201).json({ message: 'تم إضافة الموظف بنجاح', staff: newStaff.staffProfile });
   } catch (error) {
+    console.error(error);
     if (error.code === 'P2002') return res.status(400).json({ error: 'البريد الإلكتروني أو الرقم القومي مسجل مسبقاً' });
     res.status(500).json({ error: 'خطأ في إضافة الموظف' });
   }

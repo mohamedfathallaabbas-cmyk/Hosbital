@@ -25,7 +25,6 @@ export default function AdminHome() {
       ]
     : [
         { to: '/admin/doctors', icon: Stethoscope, label: 'إدارة الأطباء', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
-        { to: '/admin/patients', icon: Users, label: 'إدارة المستخدمين', color: '#2563eb', bg: 'rgba(37,99,235,0.1)' },
         { to: '/admin/departments', icon: Building2, label: 'إدارة الأقسام', color: '#14b8a6', bg: 'rgba(20,184,166,0.1)' },
         { to: '/admin/beds', icon: Bed, label: 'إدارة الأسرة', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
       ];

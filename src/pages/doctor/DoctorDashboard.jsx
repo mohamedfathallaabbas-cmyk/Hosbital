@@ -350,7 +350,7 @@ function TodayPatients() {
         prescriptions: parsedPrescriptions
       });
 
-      if (form.selectedLabTestId) {
+      if (form.selectedLabTestId || (form.labTests && form.labTests.trim())) {
         const labPatientId = diagP.patientId;
         if (labPatientId) {
           try {
@@ -359,13 +359,17 @@ function TodayPatients() {
               notes: form.labTests || undefined
             };
             if (form.selectedLabTestId === 'other') {
-              body.testName = form.customLabTestName;
-            } else {
+              body.testName = form.customLabTestName || 'فحص معملي خارجي';
+            } else if (form.selectedLabTestId) {
               body.testId = parseInt(form.selectedLabTestId);
+            } else {
+              body.testName = 'فحص معملي مخصص (ملاحظات الطبيب)';
             }
             await api.post('/labs/orders', body);
+            addToast('تم إرسال طلب الفحص المعملي للمختبر بنجاح ✓', 'success');
           } catch (labErr) {
             console.error('Lab order error:', labErr);
+            addToast(labErr.response?.data?.error || 'حدث خطأ أثناء إرسال الفحص للمختبر', 'error');
           }
         }
       }

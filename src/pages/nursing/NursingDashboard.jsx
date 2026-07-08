@@ -92,9 +92,14 @@ export default function NursingDashboard() {
     navigate('/');
   };
 
+  const [filterMode, setFilterMode] = useState('mine'); // 'mine' or 'all'
+
   // Derived stats
-  const totalPatients = admissions.length;
-  const criticalCount = admissions.filter(a => a.condition === 'CRITICAL').length;
+  const myPatients = admissions.filter(adm => adm.bed?.nursingAssignments?.some(nas => nas.nurseId === user?.staffId));
+  const displayedAdmissions = (filterMode === 'mine' && user?.staffId && user?.role !== 'NURSE') ? myPatients : admissions;
+
+  const totalPatients = displayedAdmissions.length;
+  const criticalCount = displayedAdmissions.filter(a => a.condition === 'CRITICAL').length;
 
   // Time of day greeting
   const hour = new Date().getHours();
@@ -168,11 +173,35 @@ export default function NursingDashboard() {
 
           {/* Patients Table */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
               <h3 className="font-black text-slate-800 flex items-center gap-2">
                 <UserRound className="w-5 h-5 text-rose-500" />
                 المرضى المنومون حالياً ({totalPatients})
               </h3>
+              {user?.role !== 'NURSE' && (
+                <div className="flex bg-slate-200/60 p-1 rounded-xl">
+                  <button
+                    onClick={() => setFilterMode('mine')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold font-cairo transition-all ${
+                      filterMode === 'mine'
+                        ? 'bg-rose-500 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    مرضاي (التمريض الخاص بي)
+                  </button>
+                  <button
+                    onClick={() => setFilterMode('all')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold font-cairo transition-all ${
+                      filterMode === 'all'
+                        ? 'bg-rose-500 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    كل المرضى المنومين
+                  </button>
+                </div>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-right">
@@ -189,16 +218,20 @@ export default function NursingDashboard() {
                 <tbody className="divide-y divide-slate-100">
                   {loading ? (
                     <tr><td colSpan="6" className="p-10 text-center text-slate-400 animate-pulse">جاري تحميل بيانات المرضى...</td></tr>
-                  ) : admissions.length === 0 ? (
+                  ) : displayedAdmissions.length === 0 ? (
                     <tr>
                       <td colSpan="6" className="p-12 text-center">
                         <Bed className="w-12 h-12 text-slate-200 mx-auto mb-3" />
                         <p className="text-slate-400 font-medium">لا يوجد مرضى منومون حالياً</p>
-                        <p className="text-slate-300 text-xs mt-1">ستظهر هنا قائمة المرضى عند تنويمهم من قبل الاستقبال</p>
+                        <p className="text-slate-300 text-xs mt-1">
+                          {filterMode === 'mine' 
+                            ? 'لا توجد حالات معينة لمتابعتك حالياً. يمكنك التحويل لوضع "كل المرضى" لمشاهدة الجميع.' 
+                            : 'ستظهر هنا قائمة المرضى عند تنويمهم من قبل الاستقبال'}
+                        </p>
                       </td>
                     </tr>
                   ) : (
-                    admissions.map((adm) => {
+                    displayedAdmissions.map((adm) => {
                       const patientName = adm.patient?.user?.name || adm.patientName || 'غير معروف';
                       const doctorName = adm.doctor?.user?.name || adm.doctorName || 'غير محدد';
                       const bedNumber = adm.bed?.bedNumber || adm.bedNumber || '—';

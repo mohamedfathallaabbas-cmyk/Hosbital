@@ -543,7 +543,7 @@ export default function Landing() {
             {[
               { title: 'روابط سريعة', links: ['الرئيسية', 'الأقسام', 'أطباؤنا', 'المدونة'] },
               { title: 'خدماتنا', links: ['طوارئ 24/7', 'العيادات الخارجية', 'الجراحة', 'المختبرات'] },
-              { title: 'تواصل', links: ['+966 11 234 5678', 'info@alshifa.com', 'الرياض، السعودية'] },
+              { title: 'تواصل', links: ['100 1549 150 20+', 'info@alshifa.com', 'مصر , شبين الكوم'] },
             ].map((col, i) => (
               <div key={i}>
                 <h4 className="text-white font-semibold mb-4">{col.title}</h4>
