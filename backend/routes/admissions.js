@@ -43,12 +43,39 @@ router.get('/wards/:id/beds/available', async (req, res) => {
 // GET /active - المرضى المنومين حالياً
 router.get('/active', async (req, res) => {
   try {
+    let whereClause = { status: 'ADMITTED' };
+
+    // Enforce patient separation: nurses only see patients assigned to them
+    if (req.user && req.user.role === 'NURSE') {
+      const staffProfile = await prisma.staff.findUnique({ where: { userId: req.user.id } });
+      if (staffProfile) {
+        whereClause.bed = {
+          nursingAssignments: {
+            some: {
+              nurseId: staffProfile.id,
+              isActive: true
+            }
+          }
+        };
+      } else {
+        return res.json([]);
+      }
+    }
+
     const admissions = await prisma.admission.findMany({
-      where: { status: 'ADMITTED' },
+      where: whereClause,
       include: {
         patient: { include: { user: true } },
         doctor: { include: { user: true } },
-        bed: { include: { room: { include: { ward: true } } } },
+        bed: { 
+          include: { 
+            room: { include: { ward: true } },
+            nursingAssignments: {
+              where: { isActive: true },
+              include: { nurse: { include: { user: true } } }
+            }
+          } 
+        },
         nurseNotes: { orderBy: { createdAt: 'desc' }, take: 1 }
       },
       orderBy: { admittedAt: 'desc' }

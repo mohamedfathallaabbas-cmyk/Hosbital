@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(authenticate);
 
 // GET / - جميع الموظفين
-router.get('/', requireRole('ADMIN', 'OPERATIONS_MANAGER', 'FINANCIAL_MANAGER'), async (req, res) => {
+router.get('/', requireRole('ADMIN', 'OPERATIONS_MANAGER', 'FINANCIAL_MANAGER', 'RECEPTION'), async (req, res) => {
   try {
     const staff = await prisma.staff.findMany({
       include: { user: { select: { name: true, email: true, phone: true, role: true, isActive: true } } }

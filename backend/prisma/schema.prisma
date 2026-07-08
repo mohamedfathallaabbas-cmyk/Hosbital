@@ -97,6 +97,7 @@ model Patient {
   user             User              @relation(fields: [userId], references: [id])
   files            PatientFile[]
   radiologyRecords RadiologyRecord[]
+  labOrders        LabOrder[]
 }
 
 model Appointment {
@@ -295,6 +296,7 @@ model LabOrder {
   completedAt DateTime?
   doctor      Doctor         @relation(fields: [doctorId], references: [id])
   test        LabTestCatalog @relation(fields: [testId], references: [id])
+  patient     Patient?       @relation(fields: [patientId], references: [id])
 
   @@index([status])
 }

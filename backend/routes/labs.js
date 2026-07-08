@@ -49,7 +49,12 @@ router.post('/orders', authenticate, async (req, res) => {
       finalDoctorId = doctor?.id;
     }
     if (!finalDoctorId) {
-      return res.status(400).json({ error: 'لم يتم العثور على ملف الطبيب' });
+      // Fallback for admins/testers who do not have a doctor profile
+      const firstDoc = await prisma.doctor.findFirst();
+      finalDoctorId = firstDoc?.id;
+    }
+    if (!finalDoctorId) {
+      return res.status(400).json({ error: 'لم يتم العثور على ملف الطبيب في النظام' });
     }
 
     let finalTestId = testId ? parseInt(testId) : null;

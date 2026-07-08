@@ -23,7 +23,7 @@ router.get('/assignments', requireRole('ADMIN', 'OPERATIONS_MANAGER', 'NURSE'), 
 });
 
 // POST /assignments - تعيين ممرضة لسرير
-router.post('/assignments', requireRole('ADMIN', 'OPERATIONS_MANAGER'), async (req, res) => {
+router.post('/assignments', requireRole('ADMIN', 'OPERATIONS_MANAGER', 'RECEPTION'), async (req, res) => {
   const { nurseId, bedId, shift } = req.body;
   try {
     const assignment = await prisma.nursingAssignment.create({
