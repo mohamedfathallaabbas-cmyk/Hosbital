@@ -9,6 +9,17 @@ async function main() {
   // 1. مسح البيانات السابقة (لضمان بيئة نظيفة)
   console.log('🧹 Clearing old data...');
   await prisma.$transaction([
+    prisma.leaveRequest.deleteMany(),
+    prisma.purchaseRequest.deleteMany(),
+    prisma.auditLog.deleteMany(),
+    prisma.article.deleteMany(),
+    prisma.salaryAdjustment.deleteMany(),
+    prisma.payrollItem.deleteMany(),
+    prisma.payroll.deleteMany(),
+    prisma.attendance.deleteMany(),
+    prisma.radiologyRecord.deleteMany(),
+    prisma.bloodDonation.deleteMany(),
+    prisma.patientFile.deleteMany(),
     prisma.nursingAssignment.deleteMany(),
     prisma.nurseNote.deleteMany(),
     prisma.admission.deleteMany(),
@@ -20,6 +31,7 @@ async function main() {
     prisma.invoiceItem.deleteMany(),
     prisma.invoice.deleteMany(),
     prisma.insurancePolicy.deleteMany(),
+    prisma.insuranceClass.deleteMany(),
     prisma.insuranceCompany.deleteMany(),
     prisma.prescriptionItem.deleteMany(),
     prisma.prescription.deleteMany(),
@@ -193,9 +205,38 @@ async function main() {
   // 6. شركات التأمين
   console.log('🛡️ Creating Insurance Companies...');
   const insuranceCos = [];
-  insuranceCos.push(await prisma.insuranceCompany.create({ data: { name: 'بوبا مصر (Bupa)', email: 'info@bupa.com.eg', phone: '16816' } }));
-  insuranceCos.push(await prisma.insuranceCompany.create({ data: { name: 'أليانز مصر (Allianz)', email: 'contact@allianz.com.eg', phone: '19909' } }));
-  insuranceCos.push(await prisma.insuranceCompany.create({ data: { name: 'مصر للتأمين', email: 'support@misr.com.eg', phone: '19114' } }));
+  const comp1 = await prisma.insuranceCompany.create({ data: { name: 'بوبا مصر (Bupa)', email: 'info@bupa.com.eg', phone: '16816' } });
+  const comp2 = await prisma.insuranceCompany.create({ data: { name: 'أليانز مصر (Allianz)', email: 'contact@allianz.com.eg', phone: '19909' } });
+  const comp3 = await prisma.insuranceCompany.create({ data: { name: 'مصر للتأمين', email: 'support@misr.com.eg', phone: '19114' } });
+  insuranceCos.push(comp1, comp2, comp3);
+
+  // Create default classes for Bupa, Allianz and Misr
+  for (const comp of insuranceCos) {
+    await prisma.insuranceClass.create({
+      data: {
+        companyId: comp.id,
+        name: 'الفئة الذهبية (Gold)',
+        defaultCoverage: 90.0,
+        consultationCov: 95.0,
+        labCoverage: 90.0,
+        radCoverage: 90.0,
+        pharmacyCoverage: 80.0,
+        maxAnnualLimit: 50000.0
+      }
+    });
+    await prisma.insuranceClass.create({
+      data: {
+        companyId: comp.id,
+        name: 'الفئة الفضية (Silver)',
+        defaultCoverage: 80.0,
+        consultationCov: 80.0,
+        labCoverage: 80.0,
+        radCoverage: 80.0,
+        pharmacyCoverage: 70.0,
+        maxAnnualLimit: 25000.0
+      }
+    });
+  }
 
   // 7. الأدوية (كتالوج مصري)
   console.log('💊 Creating Medicines...');
@@ -264,12 +305,16 @@ async function main() {
 
     // ربط بعض المرضى بوثائق تأمين (30%)
     if (Math.random() > 0.7) {
+      const company = insuranceCos[Math.floor(Math.random() * insuranceCos.length)];
+      const classes = await prisma.insuranceClass.findMany({ where: { companyId: company.id } });
+      const cls = classes[Math.floor(Math.random() * classes.length)];
       await prisma.insurancePolicy.create({
         data: {
           patientId: user.patientProfile.id,
-          companyId: insuranceCos[Math.floor(Math.random() * insuranceCos.length)].id,
-          policyNumber: `POL-${Math.floor(Math.random() * 10000)}`,
-          coveragePct: 0.8,
+          companyId: company.id,
+          classId: cls?.id || null,
+          policyNumber: `POL-${Math.floor(Math.random() * 100000)}`,
+          coveragePct: cls ? cls.defaultCoverage : 80.0,
           expiryDate: new Date(2027, 1, 1)
         }
       });

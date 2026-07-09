@@ -122,6 +122,7 @@ router.get('/invoices', authenticate, requirePermission(PERMISSIONS.VIEW_INVOICE
         include: {
           patient: { include: { user: { select: { name: true, phone: true } } } },
           items:   true,
+          claims:  { include: { company: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -135,11 +136,23 @@ router.get('/invoices', authenticate, requirePermission(PERMISSIONS.VIEW_INVOICE
 
 // ── POST /invoices ─────────────────────────────────────────────────────────────
 router.post('/invoices', authenticate, requirePermission(PERMISSIONS.CREATE_INVOICE), async (req, res, next) => {
-  const { patientId, items = [], discount = 0 } = req.body;
+  const { patientId, items = [], discount = 0, useInsurance = false } = req.body;
   if (!patientId) return next(new ValidationError('معرف المريض إجباري'));
   if (!items.length) return next(new ValidationError('يجب إضافة بند واحد على الأقل'));
 
   try {
+    let claimData = null;
+    if (useInsurance) {
+      const policy = await prisma.insurancePolicy.findFirst({
+        where: { patientId: parseInt(patientId), expiryDate: { gte: new Date() } }
+      });
+      if (policy) {
+        claimData = {
+          companyId: policy.companyId
+        };
+      }
+    }
+
     // Create invoice shell first (totals will be calculated by the service)
     const newInvoice = await prisma.invoice.create({
       data: {
@@ -148,7 +161,18 @@ router.post('/invoices', authenticate, requirePermission(PERMISSIONS.CREATE_INVO
         tax:         0,
         discount:    parseFloat(discount),
         totalAmount: 0,
+        patientShare: 0,
+        insuranceShare: 0,
         status:      'UNPAID',
+        ...(claimData && {
+          claims: {
+            create: {
+              companyId: claimData.companyId,
+              claimedAmount: 0,
+              status: 'SUBMITTED'
+            }
+          }
+        })
       },
     });
 
@@ -159,7 +183,7 @@ router.post('/invoices', authenticate, requirePermission(PERMISSIONS.CREATE_INVO
 
     const finalInvoice = await prisma.invoice.findUnique({
       where:   { id: newInvoice.id },
-      include: { items: true, patient: { include: { user: true } } },
+      include: { items: true, patient: { include: { user: true } }, claims: true },
     });
 
     res.status(201).json({ message: 'تم إصدار الفاتورة بنجاح', invoice: finalInvoice });

@@ -51,7 +51,15 @@ router.get('/', authenticate, async (req, res, next) => {
       prisma.appointment.findMany({
         where: whereClause,
         include: {
-          patient: { include: { user: { select: { name: true, phone: true } } } },
+          patient: {
+            include: {
+              user: { select: { name: true, phone: true } },
+              policies: {
+                where: { expiryDate: { gte: new Date() } },
+                include: { company: true, class: true }
+              }
+            }
+          },
           doctor:  { include: { user: { select: { name: true } }, department: true } },
           triage:  true,
         },
@@ -75,7 +83,15 @@ router.get('/today', authenticate, async (req, res, next) => {
     const appointments = await prisma.appointment.findMany({
       where: { date: { gte: todayStart, lte: todayEnd } },
       include: {
-        patient: { include: { user: { select: { name: true, phone: true } } } },
+        patient: {
+          include: {
+            user: { select: { name: true, phone: true } },
+            policies: {
+              where: { expiryDate: { gte: new Date() } },
+              include: { company: true, class: true }
+            }
+          }
+        },
         doctor:  { include: { user: { select: { name: true } }, department: true } },
         triage:  true,
       },

@@ -310,6 +310,21 @@ model InsuranceCompany {
   phone    String?
   claims   Claim[]
   policies InsurancePolicy[]
+  classes  InsuranceClass[]
+}
+
+model InsuranceClass {
+  id               Int              @id @default(autoincrement())
+  companyId        Int
+  name             String
+  defaultCoverage  Float            @default(80.0)
+  consultationCov  Float            @default(80.0)
+  labCoverage      Float            @default(80.0)
+  radCoverage      Float            @default(80.0)
+  pharmacyCoverage Float            @default(80.0)
+  maxAnnualLimit   Float            @default(10000.0)
+  company          InsuranceCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  policies         InsurancePolicy[]
 }
 
 model InsurancePolicy {
@@ -317,26 +332,30 @@ model InsurancePolicy {
   patientId    Int
   companyId    Int
   policyNumber String           @unique
-  coveragePct  Float
+  coveragePct  Float            @default(80.0)
+  classId      Int?
   expiryDate   DateTime
-  company      InsuranceCompany @relation(fields: [companyId], references: [id])
-  patient      Patient          @relation(fields: [patientId], references: [id])
+  company      InsuranceCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  patient      Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  class        InsuranceClass?  @relation(fields: [classId], references: [id], onDelete: SetNull)
 }
 
 model Invoice {
-  id          Int           @id @default(autoincrement())
-  patientId   Int
-  subtotal    Float         @default(0.0)
-  tax         Float         @default(0.0)
-  discount    Float         @default(0.0)
-  totalAmount Float
-  status      String        @default("UNPAID")
-  createdAt   DateTime      @default(now())
-  dueDate     DateTime?
-  claims      Claim[]
-  patient     Patient       @relation(fields: [patientId], references: [id])
-  items       InvoiceItem[]
-  payments    Payment[]
+  id             Int           @id @default(autoincrement())
+  patientId      Int
+  subtotal       Float         @default(0.0)
+  tax            Float         @default(0.0)
+  discount       Float         @default(0.0)
+  patientShare   Float         @default(0.0)
+  insuranceShare Float         @default(0.0)
+  totalAmount    Float
+  status         String        @default("UNPAID")
+  createdAt      DateTime      @default(now())
+  dueDate        DateTime?
+  claims         Claim[]
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  items          InvoiceItem[]
+  payments       Payment[]
 
   @@index([status])
   @@index([patientId])

@@ -87,12 +87,11 @@ function DashboardHome() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {[
           { title: 'المواعيد القادمة', value: appointments.filter(a => getEffectiveStatus(a) !== 'COMPLETED' && getEffectiveStatus(a) !== 'CANCELLED').length.toString(), icon: Calendar, gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)' },
           { title: 'الزيارات الكلية', value: medHistory.length.toString(), icon: Activity, gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)' },
           { title: 'الأدوية الموصوفة', value: medHistory.reduce((acc, curr) => acc + (curr.prescriptions?.length || 0), 0).toString(), icon: Pill, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)' },
-          { title: 'نتائج التحاليل', value: labs.filter(l => l.status === 'COMPLETED').length.toString(), icon: FileText, gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' },
         ].map((s, i) => <StatCard key={i} {...s} index={i} />)}
       </div>
 
@@ -470,7 +469,7 @@ export default function PatientDashboard() {
 
   const handleLogout = () => {
     sessionStorage.removeItem('hospitalUser');
-    navigate('/role-select');
+    navigate('/');
   };
 
   const currentTitle = sidebarLinks.find(l => l.path === location.pathname)?.label || 'لوحة التحكم';

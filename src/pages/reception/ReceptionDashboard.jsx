@@ -55,7 +55,8 @@ function BookingsPage() {
         date: new Date(apt.date).toISOString().split('T')[0],
         time: apt.timeSlot || '00:00',
         type: apt.type,
-        status: apt.status === 'SCHEDULED' ? 'pending' : (apt.status === 'CANCELLED' || apt.status === 'REJECTED') ? 'rejected' : 'approved'
+        status: apt.status === 'SCHEDULED' ? 'pending' : (apt.status === 'CANCELLED' || apt.status === 'REJECTED') ? 'rejected' : 'approved',
+        policies: apt.patient?.policies || []
       }));
       setBookings(formatted);
       setInvoices(invRes.data?.data || invRes.data || []);
@@ -86,6 +87,17 @@ function BookingsPage() {
   const [aPriority, setAPriority] = useState('عادية');
   const [aPayment, setAPayment] = useState('نقدي');
 
+  // Auto-detect insurance policy
+  useEffect(() => {
+    if (approveB) {
+      if (approveB.policies && approveB.policies.length > 0) {
+        setAPayment('موافقة تأمين');
+      } else {
+        setAPayment('نقدي');
+      }
+    }
+  }, [approveB]);
+
   const { toasts, addToast, removeToast } = useToast();
 
   const filtered = bookings.filter(b => b.patient.includes(search) || b.doctor.includes(search) || search === '');
@@ -98,6 +110,7 @@ function BookingsPage() {
         await api.post('/finance/invoices', {
           patientId: approveB.patientId,
           items: [{ description: `رسوم ${approveB.type || 'كشف'}`, amount: 350 }],
+          useInsurance: aPayment === 'موافقة تأمين',
           status: aPayment === 'نقدي' ? 'PAID' : 'UNPAID'
         });
       }
@@ -339,18 +352,53 @@ function BookingsPage() {
               </select>
             </div>
             {/* Billing section */}
-            <div className="border-t border-slate-100 pt-4">
-              <p className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><Receipt className="w-4 h-4 text-amber-500" />تفاصيل الفاتورة</p>
+            <div className="border-t border-slate-100 pt-4 space-y-3">
+              <p className="text-sm font-bold text-slate-700 flex items-center gap-2"><Receipt className="w-4 h-4 text-amber-500" />تفاصيل الفاتورة</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-500 text-xs font-semibold mb-1">رسوم الكشف (ج.م)</label>
-                  <input type="number" defaultValue="350" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
+                  <input type="number" readOnly value="350" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none font-cairo cursor-not-allowed" />
                 </div>
                 <div>
                   <label className="block text-slate-500 text-xs font-semibold mb-1">خصم (%)</label>
-                  <input type="number" defaultValue="0" min="0" max="100" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none focus:border-amber-400 font-cairo" />
+                  <input type="number" readOnly value="0" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 outline-none font-cairo cursor-not-allowed" />
                 </div>
               </div>
+
+              {/* Insurance info inside modal */}
+              {approveB.policies && approveB.policies.length > 0 && (
+                <div className="p-3 rounded-xl bg-purple-50 border border-purple-100 space-y-1 text-xs">
+                  <div className="flex justify-between text-purple-700 font-bold">
+                    <span>🛡️ بوليصة التأمين المكتشفة:</span>
+                    <span className="bg-purple-100 px-1.5 py-0.5 rounded font-mono">نشط</span>
+                  </div>
+                  <p className="font-semibold text-slate-800">
+                    {approveB.policies[0].company?.name} · {approveB.policies[0].class?.name || 'الفئة الافتراضية'}
+                  </p>
+                  <div className="pt-1.5 border-t border-purple-100 flex justify-between items-center text-[10px] text-slate-500">
+                    <span>رقم: {approveB.policies[0].policyNumber}</span>
+                    <span>نسبة التغطية (كشف): {approveB.policies[0].class?.consultationCov || approveB.policies[0].coveragePct || 80}%</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Calculation Preview */}
+              {aPayment === 'موافقة تأمين' && approveB.policies && approveB.policies.length > 0 && (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-slate-500">
+                    <span>المبلغ شامل الضريبة (14%):</span>
+                    <span>399.00 ج.م</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-600 font-semibold">
+                    <span>حصة شركة التأمين ({approveB.policies[0].class?.consultationCov || approveB.policies[0].coveragePct || 80}%):</span>
+                    <span>-{parseFloat((399 * (approveB.policies[0].class?.consultationCov || approveB.policies[0].coveragePct || 80) / 100).toFixed(2))} ج.م</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-slate-200 font-bold text-slate-800">
+                    <span>نسبة تحمل المريض المطلوبة:</span>
+                    <span>{parseFloat((399 - (399 * (approveB.policies[0].class?.consultationCov || approveB.policies[0].coveragePct || 80) / 100)).toFixed(2))} ج.م</span>
+                  </div>
+                </div>
+              )}
             </div>
             <button onClick={handleApproveConfirm} className="w-full mt-2 py-3 rounded-xl text-white font-bold font-cairo flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg, #14b8a6, #0d9488)' }}>
               <Receipt className="w-4 h-4" />تأكيد الحجز وإصدار الفاتورة

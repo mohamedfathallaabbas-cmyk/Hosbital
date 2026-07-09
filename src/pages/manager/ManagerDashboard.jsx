@@ -5,7 +5,7 @@ import api from '../../lib/api';
 import {
   LayoutDashboard, DollarSign, TrendingUp, TrendingDown,
   FileText, CreditCard, BarChart3, PieChart, Printer,
-  Download, LogOut, HeartPulse, Calendar, Building2,
+  LogOut, HeartPulse, Calendar, Building2,
   Stethoscope, Menu, X, ArrowUpRight, ArrowDownRight,
   Receipt, ShieldCheck, Clock, AlertCircle, CalendarDays,
   CheckCircle, XCircle, Loader2, UserCog
@@ -64,6 +64,7 @@ function ManagerHome() {
   const [period, setPeriod] = useState('yearly');
   const [liveStats, setLiveStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const user = (() => { try { return JSON.parse(sessionStorage.getItem('hospitalUser') || '{}'); } catch { return {}; } })();
 
   useEffect(() => {
     setLoading(true);
@@ -92,17 +93,13 @@ function ManagerHome() {
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
               <p className="text-red-100 text-sm mb-1">لوحة المدير المالي والإداري</p>
-              <h2 className="text-white text-3xl font-black mb-2">خالد المنصور</h2>
+              <h2 className="text-white text-3xl font-black mb-2">{user.name || 'خالد المنصور'}</h2>
               <p className="text-red-100">صلاحيات التقارير المالية الكاملة</p>
             </div>
             <div className="flex gap-3 flex-wrap">
               <button onClick={() => window.print()}
                 className="flex items-center gap-2 px-5 py-3 rounded-xl text-white font-semibold text-sm bg-white/20 hover:bg-white/30 transition-all no-print">
                 <Printer className="w-4 h-4" />طباعة التقرير
-              </button>
-              <button onClick={() => window.print()}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl text-white font-semibold text-sm bg-white/20 hover:bg-white/30 transition-all no-print">
-                <Download className="w-4 h-4" />تصدير PDF
               </button>
             </div>
           </div>
@@ -225,9 +222,6 @@ function RevenuePage() {
             style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
             <Printer className="w-4 h-4" />طباعة
           </button>
-          <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-            <Download className="w-4 h-4" />تصدير PDF
-          </button>
         </div>
       </div>
 
@@ -288,15 +282,48 @@ function RevenuePage() {
 }
 
 function InsurancePage() {
-  const insuranceData = [
-    { company: 'التعاونية للتأمين', claims: 245, approved: 218, pending: 27, amount: 458000 },
-    { company: 'BUPA Arabia', claims: 180, approved: 165, pending: 15, amount: 324000 },
-    { company: 'أنظمة الرعاية الصحية', claims: 156, approved: 140, pending: 16, amount: 289000 },
-    { company: 'MedGulf', claims: 98, approved: 88, pending: 10, amount: 176000 },
-    { company: 'AXA Cooperative', claims: 75, approved: 68, pending: 7, amount: 134000 },
-  ];
+  const [companies, setCompanies] = useState([]);
+  const [claims, setClaims] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      api.get('/insurance/companies'),
+      api.get('/insurance/claims')
+    ])
+      .then(([compRes, claimsRes]) => {
+        setCompanies(compRes.data || []);
+        setClaims(claimsRes.data || []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const stats = {
+    totalClaims: claims.length,
+    approved: claims.filter(c => c.status === 'APPROVED').length,
+    pending: claims.filter(c => c.status === 'SUBMITTED').length,
+    totalAmount: claims.reduce((sum, c) => sum + (c.claimedAmount || 0), 0)
+  };
+
+  const insuranceData = companies.map(co => {
+    const coClaims = claims.filter(c => c.companyId === co.id);
+    const approved = coClaims.filter(c => c.status === 'APPROVED').length;
+    const pending = coClaims.filter(c => c.status === 'SUBMITTED').length;
+    const amount = coClaims.reduce((sum, c) => sum + (c.claimedAmount || 0), 0);
+    return {
+      name: co.name,
+      claims: coClaims.length,
+      approved,
+      pending,
+      amount,
+      rate: coClaims.length > 0 ? (approved / coClaims.length * 100).toFixed(0) : 0
+    };
+  });
+
   return (
-    <div className="p-6 fade-in">
+    <div className="p-6 fade-in font-cairo">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div className="section-header mb-0">
           <div className="section-header-line" style={{ background: 'linear-gradient(180deg, #ef4444, #dc2626)' }} />
@@ -307,43 +334,53 @@ function InsurancePage() {
           <Printer className="w-4 h-4" />طباعة
         </button>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'إجمالي المطالبات', value: '754', color: '#2563eb' },
-          { label: 'المطالبات المعتمدة', value: '679', color: '#14b8a6' },
-          { label: 'قيد المراجعة', value: '75', color: '#f59e0b' },
-          { label: 'إجمالي قيمة التأمين', value: '1.38M ج.م', color: '#ef4444' },
-        ].map((s, i) => (
-          <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-800 text-center">
-            <div className="text-2xl font-black mb-1" style={{ color: s.color }}>{s.value}</div>
-            <div className="text-slate-500 dark:text-slate-400 text-sm">{s.label}</div>
-          </div>
-        ))}
-      </div>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800">
-        <table className="hospital-table">
-          <thead><tr><th>شركة التأمين</th><th>المطالبات</th><th>معتمدة</th><th>قيد المراجعة</th><th>القيمة الإجمالية</th><th>نسبة الاعتماد</th></tr></thead>
-          <tbody>
-            {insuranceData.map((ins, i) => (
-              <tr key={i}>
-                <td className="font-medium text-slate-800">{ins.company}</td>
-                <td>{ins.claims}</td>
-                <td><span className="badge-success">{ins.approved}</span></td>
-                <td><span className="badge-warning">{ins.pending}</span></td>
-                <td className="font-semibold text-green-600 dark:text-green-400">{ins.amount.toLocaleString()} ج.م</td>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${(ins.approved / ins.claims * 100).toFixed(0)}%`, background: 'linear-gradient(135deg, #14b8a6, #0d9488)' }} />
-                    </div>
-                    <span className="text-xs font-semibold text-teal-600">{(ins.approved / ins.claims * 100).toFixed(0)}%</span>
-                  </div>
-                </td>
-              </tr>
+
+      {loading ? (
+        <div className="flex justify-center items-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {[
+              { label: 'إجمالي المطالبات', value: stats.totalClaims.toString(), color: '#2563eb' },
+              { label: 'المطالبات المعتمدة', value: stats.approved.toString(), color: '#14b8a6' },
+              { label: 'قيد المراجعة', value: stats.pending.toString(), color: '#f59e0b' },
+              { label: 'إجمالي قيمة التأمين', value: `${stats.totalAmount.toLocaleString()} ج.م`, color: '#ef4444' },
+            ].map((s, i) => (
+              <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-800 text-center">
+                <div className="text-2xl font-black mb-1" style={{ color: s.color }}>{s.value}</div>
+                <div className="text-slate-500 dark:text-slate-400 text-sm">{s.label}</div>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800">
+            <table className="hospital-table">
+              <thead><tr><th>شركة التأمين</th><th>المطالبات</th><th>معتمدة</th><th>قيد المراجعة</th><th>القيمة الإجمالية</th><th>نسبة الاعتماد</th></tr></thead>
+              <tbody>
+                {insuranceData.map((ins, i) => (
+                  <tr key={i}>
+                    <td className="font-medium text-slate-800 dark:text-slate-200">{ins.name}</td>
+                    <td>{ins.claims}</td>
+                    <td><span className="badge-success">{ins.approved}</span></td>
+                    <td><span className="badge-warning">{ins.pending}</span></td>
+                    <td className="font-semibold text-green-600 dark:text-green-400">{ins.amount.toLocaleString()} ج.م</td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${ins.rate}%`, background: 'linear-gradient(135deg, #14b8a6, #0d9488)' }} />
+                        </div>
+                        <span className="text-xs font-semibold text-teal-600">{ins.rate}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -612,7 +649,7 @@ export default function ManagerDashboard() {
           <div style={{ fontFamily: 'Cairo, sans-serif', textAlign: 'center', borderBottom: '3px solid #ef4444', paddingBottom: '20px', marginBottom: '30px' }}>
             <div style={{ fontSize: '28px', fontWeight: 900 }}>مستشفى الشفاء</div>
             <div style={{ fontSize: '16px', color: '#666', marginTop: '5px' }}>تقرير مالي — سري للغاية</div>
-            <div style={{ fontSize: '13px', color: '#999', marginTop: '5px' }}>التاريخ: {new Date().toLocaleDateString('ar-SA')} | المدير المالي: خالد المنصور</div>
+            <div style={{ fontSize: '13px', color: '#999', marginTop: '5px' }}>التاريخ: {new Date().toLocaleDateString('ar-SA')} | المدير المالي: {user.name || 'خالد المنصور'}</div>
           </div>
         </div>
 
