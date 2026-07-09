@@ -55,8 +55,19 @@ router.get(
         }
       });
 
-      const revenueByDept = Object.entries(deptMap).map(([name, value]) => ({ name, value }));
-      if (labRevenue > 0) revenueByDept.push({ name: 'المختبر والأشعة', value: labRevenue });
+      const COLORS = ['#ef4444', '#2563eb', '#8b5cf6', '#f59e0b', '#14b8a6', '#ec4899'];
+      const revenueByDept = Object.entries(deptMap).map(([name, revenue], idx) => ({
+        name,
+        revenue,
+        color: COLORS[idx % COLORS.length]
+      }));
+      if (labRevenue > 0) {
+        revenueByDept.push({
+          name: 'المختبر والأشعة',
+          revenue: labRevenue,
+          color: COLORS[revenueByDept.length % COLORS.length]
+        });
+      }
 
       // 3. Monthly trend — 6 months (6 queries, acceptable)
       const monthlyData = [];

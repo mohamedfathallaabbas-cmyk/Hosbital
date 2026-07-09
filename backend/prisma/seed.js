@@ -24,7 +24,6 @@ async function main() {
   await prisma.attendance.deleteMany();
   await prisma.salaryAdjustment.deleteMany();
   await prisma.auditLog.deleteMany();
-  await prisma.notification.deleteMany();
   await prisma.nurseNote.deleteMany();
   await prisma.triage.deleteMany();
   await prisma.prescriptionItem.deleteMany();

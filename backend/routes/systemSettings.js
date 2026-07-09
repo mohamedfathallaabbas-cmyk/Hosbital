@@ -28,8 +28,8 @@ router.post('/', authenticate, requirePermission(PERMISSIONS.MANAGE_SYSTEM_SETTI
       settings.map(s => 
         prisma.systemSetting.upsert({
           where: { key: s.key },
-          update: { value: JSON.stringify(s.value) },
-          create: { key: s.key, value: JSON.stringify(s.value) }
+          update: { value: JSON.stringify(s.value), userId: req.user.id },
+          create: { key: s.key, value: JSON.stringify(s.value), userId: req.user.id }
         })
       )
     );

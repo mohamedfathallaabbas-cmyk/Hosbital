@@ -289,9 +289,8 @@ router.delete('/users/:id', requireRole('ADMIN'), async (req, res) => {
         await tx.patient.delete({ where: { id: patientId } });
       }
 
-      // 4. Clean up notifications and audit logs
+      // 4. Clean up audit logs
       await tx.auditLog.deleteMany({ where: { userId } });
-      await tx.notification.deleteMany({ where: { userId } });
 
       // 5. Delete User itself
       await tx.user.delete({ where: { id: userId } });

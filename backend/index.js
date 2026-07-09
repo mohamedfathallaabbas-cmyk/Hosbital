@@ -34,7 +34,6 @@ import staffRoutes        from './routes/staff.js';
 import insuranceRoutes    from './routes/insurance.js';
 import reportsRoutes      from './routes/reports.js';
 import patientFilesRoutes from './routes/patientFiles.js';
-import notificationRoutes from './routes/notifications.js';
 import systemSettingsRoutes from './routes/systemSettings.js';
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
@@ -52,8 +51,7 @@ const io = new SocketIOServer(httpServer, {
   }
 });
 
-// Expose io globally so notification service can use it
-global.io = io;
+// Socket.io initialization
 
 io.on('connection', (socket) => {
   console.log(`[Socket] User connected: ${socket.id}`);
@@ -134,7 +132,6 @@ app.use('/api/nursing',         nursingRoutes);
 app.use('/api/staff',           staffRoutes);
 app.use('/api/insurance',       insuranceRoutes);
 app.use('/api/reports',         reportsRoutes);
-app.use('/api/notifications',   notificationRoutes);
 app.use('/api/system-settings', systemSettingsRoutes);
 
 // ── 404 Handler ───────────────────────────────────────────────────────────────

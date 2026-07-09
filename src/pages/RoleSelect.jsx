@@ -16,7 +16,7 @@ const roles = [
   { id: 'pharmacist', label: 'صيدلي', sublabel: 'Pharmacy', icon: Stethoscope, color: '#10b981', bg: 'rgba(16,185,129,0.1)', gradient: 'linear-gradient(135deg, #10b981, #059669)', desc: 'صرف الأدوية والجرد', path: '/pharmacy/dashboard' },
   { id: 'lab_tech', label: 'فني مختبر', sublabel: 'Lab & Radiology', icon: FlaskConical, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', desc: 'إدارة التحاليل والأشعة والنتائج', path: '/lab/dashboard' },
   { id: 'admin', label: 'مدير النظام', sublabel: 'Admin', icon: Settings, color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', desc: 'إدارة تشغيلية للنظام', path: '/admin/dashboard' },
-  { id: 'financial_manager', label: 'مدير مالي', sublabel: 'Finance', icon: TrendingUp, color: '#eab308', bg: 'rgba(234,179,8,0.1)', gradient: 'linear-gradient(135deg, #eab308, #ca8a04)', desc: 'الماليات والرواتب والفواتير', path: '/admin/dashboard' },
+  { id: 'financial_manager', label: 'مدير مالي', sublabel: 'Finance', icon: TrendingUp, color: '#eab308', bg: 'rgba(234,179,8,0.1)', gradient: 'linear-gradient(135deg, #eab308, #ca8a04)', desc: 'الماليات والرواتب والفواتير', path: '/manager/dashboard' },
   { id: 'staff', label: 'موظف', sublabel: 'Staff', icon: User, color: '#475569', bg: 'rgba(71,85,105,0.1)', gradient: 'linear-gradient(135deg, #475569, #0f172a)', desc: 'بيانات الموظف والمرتب والحضور والإجازات', path: '/staff/dashboard' },
 ];
 
@@ -141,7 +141,7 @@ export default function RoleSelect() {
         nurse: '/nursing/dashboard',
         reception: '/reception/dashboard',
         admin: '/admin/dashboard',
-        financial_manager: '/admin/dashboard',
+        financial_manager: '/manager/dashboard',
 
         pharmacist: '/pharmacy/dashboard',
         lab_tech: '/lab/dashboard',

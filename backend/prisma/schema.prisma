@@ -29,7 +29,7 @@ model User {
   auditLogs        AuditLog[]
   purchaseRequests PurchaseRequest[] @relation("PharmacistRequests")
   approvedRequests PurchaseRequest[] @relation("AdminApprovals")
-  notifications    Notification[]
+  systemSettings   SystemSetting[]
 }
 
 
@@ -98,6 +98,7 @@ model Patient {
   files            PatientFile[]
   radiologyRecords RadiologyRecord[]
   labOrders        LabOrder[]
+  bloodDonations   BloodDonation[]
 }
 
 model Appointment {
@@ -271,6 +272,7 @@ model PrescriptionItem {
   duration       String
   quantity       Int
   medicineName   String?
+  isDispensed    Boolean      @default(false)
   medicine       Medicine?    @relation(fields: [medicineId], references: [id])
   prescription   Prescription @relation(fields: [prescriptionId], references: [id])
 }
@@ -405,12 +407,13 @@ model PatientFile {
 model BloodDonation {
   id           Int      @id @default(autoincrement())
   donorName    String
-  nationalId   String
+  nationalId   String?
   bloodType    String
   quantity     Float
   donationDate DateTime @default(now())
   status       String   @default("TESTING")
   notes        String?
+  patient      Patient? @relation(fields: [nationalId], references: [nationalId])
 }
 
 model Attendance {
@@ -521,28 +524,13 @@ enum FileCategory {
   OTHER
 }
 
-model Notification {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  title       String
-  message     String
-  type        String   @default("INFO")
-  isRead      Boolean  @default(false)
-  link        String?
-  createdAt   DateTime @default(now())
-
-  user        User     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([isRead])
-  @@index([createdAt])
-}
-
 model SystemSetting {
   id          Int      @id @default(autoincrement())
   key         String   @unique
   value       String   // JSON stringified value
   description String?
   updatedAt   DateTime @updatedAt
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id])
 }
 

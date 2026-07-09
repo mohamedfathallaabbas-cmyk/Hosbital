@@ -339,4 +339,111 @@ router.patch(
   }
 );
 
+// ── PATCH /prescriptions/items/:itemId/dispense ───────────────────────────────
+router.patch(
+  '/prescriptions/items/:itemId/dispense',
+  authenticate,
+  requirePermission(PERMISSIONS.DISPENSE_MEDICINE),
+  async (req, res, next) => {
+    const itemId = parseInt(req.params.itemId);
+
+    try {
+      const item = await prisma.prescriptionItem.findUnique({
+        where: { id: itemId },
+        include: {
+          medicine: true,
+          prescription: {
+            include: {
+              items: true,
+              medicalRecord: { include: { appointment: true } }
+            }
+          }
+        }
+      });
+
+      if (!item) return next(new NotFoundError('دواء الروشتة غير موجود'));
+      if (item.isDispensed) {
+        return next(new ConflictError('تم صرف هذا الدواء مسبقاً'));
+      }
+      if (item.prescription.status === 'DISPENSED') {
+        return next(new ConflictError('هذه الروشتة تم صرفها بالكامل مسبقاً'));
+      }
+
+      // ── Atomic Transaction ───────────────────────────────────────────────────
+      await prisma.$transaction(async (tx) => {
+        // A. Decrement stock if it is an internal medicine
+        if (item.medicineId) {
+          const updated = await tx.medicine.updateMany({
+            where: {
+              id: item.medicineId,
+              stock: { gte: item.quantity },
+            },
+            data: { stock: { decrement: item.quantity } },
+          });
+
+          if (updated.count === 0) {
+            throw new Error(`مخزون الدواء "${item.medicine?.name || item.medicineName}" غير كافٍ (المطلوب: ${item.quantity})`);
+          }
+        }
+
+        // B. Mark item as dispensed
+        await tx.prescriptionItem.update({
+          where: { id: itemId },
+          data: { isDispensed: true },
+        });
+
+        // C. Check if all other items in this prescription are now dispensed
+        const allItems = item.prescription.items;
+        const allDispensed = allItems.every(i => i.id === itemId ? true : i.isDispensed);
+
+        if (allDispensed) {
+          await tx.prescription.update({
+            where: { id: item.prescriptionId },
+            data: { status: 'DISPENSED' },
+          });
+        }
+
+        // D. Add cost to patient invoice (only for this item)
+        const appointment = item.prescription.medicalRecord?.appointment;
+        if (appointment?.patientId && item.medicineId && item.medicine?.price) {
+          let invoice = await tx.invoice.findFirst({
+            where: { patientId: appointment.patientId, status: { in: ['UNPAID', 'PARTIAL'] } },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          if (!invoice) {
+            invoice = await tx.invoice.create({
+              data: { patientId: appointment.patientId, totalAmount: 0, subtotal: 0, tax: 0 },
+            });
+          }
+
+          const medCost = item.medicine.price * item.quantity;
+          if (medCost > 0) {
+            await addInvoiceItem(
+              { invoiceId: invoice.id, description: `دواء "${item.medicine.name}" روشتة #${item.prescriptionId}`, amount: medCost },
+              tx
+            );
+          }
+        }
+      });
+
+      // ── Audit Log ────────────────────────────────────────────────────────────
+      await audit.log({
+        ...audit.fromRequest(req),
+        action: 'DISPENSE_MEDICINE_ITEM',
+        entityType: 'PrescriptionItem',
+        entityId: itemId,
+        newData: { isDispensed: true, dispensedBy: req.user.id },
+      });
+
+      res.json({ message: 'تم صرف الدواء بنجاح ✓' });
+    } catch (err) {
+      if (err.message?.includes('غير كافٍ')) {
+        return next(new ValidationError(err.message));
+      }
+      next(err);
+    }
+  }
+);
+
 export default router;

@@ -14,6 +14,7 @@ import PatientDashboard from './pages/patient/PatientDashboard';
 import DoctorDashboard from './pages/doctor/DoctorDashboard';
 import ReceptionDashboard from './pages/reception/ReceptionDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import ManagerDashboard from './pages/manager/ManagerDashboard';
 import PharmacyDashboard from './pages/pharmacy/PharmacyDashboard';
 import LabDashboard from './pages/lab/LabDashboard';
 import NursingDashboard from './pages/nursing/NursingDashboard';
@@ -57,7 +58,7 @@ const AuthenticatedApp = () => {
 
         {/* Admin & Manager Routes */}
         <Route path="/admin/*" element={<AdminDashboard />} />
-        <Route path="/manager/*" element={<AdminDashboard />} />
+        <Route path="/manager/*" element={<ManagerDashboard />} />
 
         {/* Pharmacy Routes */}
         <Route path="/pharmacy/*" element={<PharmacyDashboard />} />

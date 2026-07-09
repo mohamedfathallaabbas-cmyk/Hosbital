@@ -8,19 +8,23 @@ import {
   Download, LogOut, HeartPulse, Calendar, Building2,
   Stethoscope, Menu, X, ArrowUpRight, ArrowDownRight,
   Receipt, ShieldCheck, Clock, AlertCircle, CalendarDays,
-  CheckCircle, XCircle, Loader2
+  CheckCircle, XCircle, Loader2, UserCog
 } from 'lucide-react';
 import Topbar from '../../components/hospital/Topbar';
 import StatCard from '../../components/hospital/StatCard';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell } from 'recharts';
+import DoctorsManagement from '../admin/components/DoctorsManagement';
+import EmployeesManagement from '../admin/components/EmployeesManagement';
 
 const sidebarLinks = [
-  { icon: LayoutDashboard, label: 'لوحة المدير',       path: '/manager/dashboard' },
-  { icon: DollarSign,     label: 'تقرير الإيرادات',   path: '/manager/revenue' },
-  { icon: TrendingDown,   label: 'تقرير المصروفات',   path: '/manager/expenses' },
-  { icon: ShieldCheck,    label: 'تقرير التأمينات',   path: '/manager/insurance' },
-  { icon: Receipt,        label: 'الفواتير المتأخرة', path: '/manager/outstanding' },
-  { icon: CalendarDays,   label: 'طلبات الإجازات',    path: '/manager/leaves' },
+  { icon: LayoutDashboard, label: 'لوحة المدير',           path: '/manager/dashboard' },
+  { icon: Stethoscope,     label: 'رواتب وعقود الأطباء',   path: '/manager/doctors' },
+  { icon: UserCog,         label: 'رواتب وبدلات الموظفين', path: '/manager/employees' },
+  { icon: DollarSign,      label: 'تقرير الإيرادات',       path: '/manager/revenue' },
+  { icon: TrendingDown,    label: 'تقرير المصروفات',       path: '/manager/expenses' },
+  { icon: ShieldCheck,     label: 'تقرير التأمينات',       path: '/manager/insurance' },
+  { icon: Receipt,         label: 'الفواتير المتأخرة',     path: '/manager/outstanding' },
+  { icon: CalendarDays,    label: 'طلبات الإجازات',        path: '/manager/leaves' },
 ];
 
 const monthlyData = [
@@ -163,17 +167,23 @@ function ManagerHome() {
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">الإيرادات حسب القسم</h3>
           </div>
           <div className="space-y-4">
-            {deptData.map((d, i) => (
-              <div key={i}>
-                <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-slate-600 dark:text-slate-400 font-medium">{d.name}</span>
-                  <span className="text-slate-900 dark:text-white font-bold">{d.revenue.toLocaleString()} ج.م</span>
+            {deptData.map((d, i) => {
+              const rev = d.revenue ?? d.value ?? 0;
+              const maxRev = Math.max(...deptData.map(x => x.revenue ?? x.value ?? 1)) || 1;
+              const pct = (rev / maxRev) * 100;
+              const barColor = d.color || COLORS[i % COLORS.length];
+              return (
+                <div key={i}>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-slate-600 dark:text-slate-400 font-medium">{d.name}</span>
+                    <span className="text-slate-900 dark:text-white font-bold">{rev.toLocaleString()} ج.م</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: barColor }} />
+                  </div>
                 </div>
-                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${(d.revenue / Math.max(...deptData.map(x => x.revenue)) * 100)}%`, backgroundColor: d.color }} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -609,6 +619,8 @@ export default function ManagerDashboard() {
         <Routes>
           <Route index element={<ManagerHome />} />
           <Route path="dashboard" element={<ManagerHome />} />
+          <Route path="doctors" element={<DoctorsManagement />} />
+          <Route path="employees" element={<EmployeesManagement />} />
           <Route path="revenue" element={<RevenuePage />} />
           <Route path="insurance" element={<InsurancePage />} />
           <Route path="leaves" element={<LeavesPage />} />

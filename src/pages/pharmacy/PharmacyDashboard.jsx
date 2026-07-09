@@ -28,14 +28,25 @@ function PharmacyHome() {
       .catch(err => console.error(err));
   };
 
-  const handleDispense = async (id) => {
+  const handleDispenseItem = async (itemId) => {
     try {
-      await api.patch(`/pharmacy/prescriptions/${id}/dispense`);
-      addToast('تم صرف الأدوية بنجاح ✓', 'success');
+      await api.patch(`/pharmacy/prescriptions/items/${itemId}/dispense`);
+      addToast('تم صرف الدواء بنجاح ✓', 'success');
       fetchPrescriptions();
+      api.get('/pharmacy/inventory').then(r => setMedicines(Array.isArray(r.data) ? r.data : (r.data?.data || []))).catch(() => {});
     } catch (err) {
-      addToast('خطأ في صرف الروشتة', 'error');
+      addToast(err.response?.data?.error || 'خطأ في صرف الدواء', 'error');
     }
+  };
+
+  const handleRestockFromItem = (medicineId, medicineName, requiredQty) => {
+    setRestockForm({
+      medicineId: medicineId ? String(medicineId) : '',
+      medicineName: medicineId ? '' : medicineName,
+      quantity: String(requiredQty),
+      notes: `طلب تزويد تلقائي بسبب نقص مخزون صرف الروشتة`
+    });
+    setRestockModal(true);
   };
 
   const pendingCount = prescriptions.filter(p => p.status === 'PENDING').length;
@@ -133,27 +144,62 @@ function PharmacyHome() {
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                  {p.items.map(item => (
-                    <div key={item.id} className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
-                      <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0">
-                        <Droplets className="w-5 h-5 text-teal-600" />
+                <div className="grid grid-cols-1 gap-3 mb-4">
+                  {p.items.map(item => {
+                    const isExternal = !item.medicineId;
+                    const inStock = isExternal || (item.medicine && item.medicine.stock >= item.quantity);
+                    const stockCount = item.medicine ? item.medicine.stock : 0;
+
+                    return (
+                      <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0">
+                            <Droplets className="w-5 h-5 text-teal-600" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800 text-sm">
+                              {item.medicine?.name || item.medicineName || 'دواء خارجي'}
+                              <span className="text-xs text-slate-400 mr-2">({item.quantity} عبوة)</span>
+                            </p>
+                            <p className="text-xs text-slate-500">{item.dosage} — {item.frequency} لمدة {item.duration}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2">
+                          {item.isDispensed || p.status === 'DISPENSED' ? (
+                            <span className="flex items-center gap-1 text-emerald-600 font-bold text-xs bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-100">
+                              <CheckCircle className="w-4 h-4" /> تم الصرف
+                            </span>
+                          ) : (
+                            <>
+                              {inStock ? (
+                                <button
+                                  onClick={() => handleDispenseItem(item.id)}
+                                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1 font-cairo"
+                                >
+                                  <Pill className="w-3.5 h-3.5" /> صرف الدواء
+                                </button>
+                              ) : (
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="text-red-500 font-semibold text-xs flex items-center gap-1">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> غير متوفر بالصيدلية (المخزون الحالي: {stockCount})
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRestockFromItem(item.medicineId, item.medicine?.name || item.medicineName, item.quantity)}
+                                    className="text-xs text-amber-600 hover:text-amber-700 underline font-bold font-cairo"
+                                  >
+                                    هل تريد إرسال طلب للتزويد؟
+                                  </button>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-800 text-sm">{item.medicine?.name || item.medicineName || 'دواء خارجي'}</p>
-                        <p className="text-xs text-slate-500">{item.dosage} — {item.frequency} لمدة {item.duration}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-                
-                {p.status === 'PENDING' && (
-                  <div className="flex justify-end pt-2 border-t border-slate-100/50 mt-2">
-                    <button onClick={() => handleDispense(p.id)} className="btn-primary-hospital px-6 py-2 text-sm flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />صرف الروشتة
-                    </button>
-                  </div>
-                )}
               </div>
             ))
           )}
