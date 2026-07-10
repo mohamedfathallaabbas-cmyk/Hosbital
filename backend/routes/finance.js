@@ -26,16 +26,45 @@ router.get(
   requirePermission(PERMISSIONS.VIEW_FINANCIAL_SUMMARY),
   async (req, res, next) => {
     try {
-      // 1. Revenue aggregation (DB-level, not nested loops)
+      // 1. Revenue aggregation (DB-level, PAID invoices)
       const totalRevenueResult = await prisma.invoice.aggregate({
         where:  { status: 'PAID' },
         _sum:   { totalAmount: true },
       });
-      const totalRevenue  = totalRevenueResult._sum.totalAmount || 0;
-      const totalExpenses = totalRevenue * 0.45;
-      const netProfit     = totalRevenue - totalExpenses;
+      const totalRevenue = totalRevenueResult._sum.totalAmount || 0;
 
-      // 2. Revenue by department using groupBy at DB level (O(1) vs old O(N³))
+      // 2. Actual Expenses aggregation
+      // a. Payroll expenses (sum of netSalary of PAID payrolls)
+      const payrollPaidResult = await prisma.payroll.aggregate({
+        where: { paymentStatus: 'PAID' },
+        _sum: { netSalary: true }
+      });
+      const payrollExpenses = payrollPaidResult._sum.netSalary || 0;
+
+      // b. Medicine purchase expenses (APPROVED purchase requests)
+      const approvedPurchases = await prisma.purchaseRequest.findMany({
+        where: { status: 'APPROVED' },
+        include: { medicine: true }
+      });
+      const medicineExpenses = approvedPurchases.reduce((sum, req) => {
+        const price = req.medicine?.price || 0;
+        return sum + (req.quantity * price);
+      }, 0);
+
+      // c. Simulated general operational overhead (utilities, rent, maintenance - 15% of revenue)
+      const operationalExpenses = totalRevenue * 0.15;
+
+      const totalExpenses = payrollExpenses + medicineExpenses + operationalExpenses;
+      const netProfit = totalRevenue - totalExpenses;
+
+      // 3. Outstanding Payments (sum of UNPAID and PARTIAL invoices)
+      const pendingInvoicesResult = await prisma.invoice.aggregate({
+        where: { status: { in: ['UNPAID', 'PARTIAL'] } },
+        _sum: { totalAmount: true }
+      });
+      const pendingInvoicesAmount = pendingInvoicesResult._sum.totalAmount || 0;
+
+      // 4. Revenue by department using groupBy at DB level
       const revenueByDeptRaw = await prisma.invoiceItem.groupBy({
         by:    ['description'],
         where: { invoice: { status: 'PAID' } },
@@ -69,23 +98,52 @@ router.get(
         });
       }
 
-      // 3. Monthly trend — 6 months (6 queries, acceptable)
+      // 5. Monthly trend — 6 months (aggregating revenue, payroll, and purchases per month)
       const monthlyData = [];
       for (let i = 5; i >= 0; i--) {
         const d = new Date();
         d.setMonth(d.getMonth() - i);
-        const label    = d.toLocaleString('ar-EG', { month: 'long' });
-        const start    = new Date(d.getFullYear(), d.getMonth(), 1);
-        const end      = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        const label = d.toLocaleString('ar-EG', { month: 'long' });
+        const start = new Date(d.getFullYear(), d.getMonth(), 1);
+        const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
 
-        const r = await prisma.invoice.aggregate({
+        const monthNum = d.getMonth() + 1;
+        const yearNum = d.getFullYear();
+
+        // Revenue for month
+        const rResult = await prisma.invoice.aggregate({
           where: { status: 'PAID', createdAt: { gte: start, lte: end } },
           _sum:  { totalAmount: true },
         });
-        monthlyData.push({ month: label, revenue: r._sum.totalAmount || 0 });
+        const mRevenue = rResult._sum.totalAmount || 0;
+
+        // Payroll for month
+        const pResult = await prisma.payroll.aggregate({
+          where: { month: monthNum, year: yearNum, paymentStatus: 'PAID' },
+          _sum: { netSalary: true }
+        });
+        const mPayroll = pResult._sum.netSalary || 0;
+
+        // Purchase requests for month
+        const mPurchasesRaw = await prisma.purchaseRequest.findMany({
+          where: { status: 'APPROVED', createdAt: { gte: start, lte: end } },
+          include: { medicine: true }
+        });
+        const mPurchases = mPurchasesRaw.reduce((sum, req) => sum + (req.quantity * (req.medicine?.price || 0)), 0);
+
+        const mOperational = mRevenue * 0.15;
+        const mExpenses = mPayroll + mPurchases + mOperational;
+        const mProfit = mRevenue - mExpenses;
+
+        monthlyData.push({
+          month: label,
+          revenue: mRevenue,
+          expenses: mExpenses,
+          profit: mProfit
+        });
       }
 
-      // 4. General stats
+      // 6. General counts
       const [patientsCount, doctorsCount, apptsCount, invoicesCount, pendingInvoicesCount] = await Promise.all([
         prisma.patient.count(),
         prisma.doctor.count(),
@@ -98,9 +156,16 @@ router.get(
         revenue: totalRevenue,
         expenses: totalExpenses,
         profit: netProfit,
+        pendingInvoicesAmount,
         revenueByDept,
         monthlyData,
-        stats: { patients: patientsCount, doctors: doctorsCount, appointments: apptsCount, invoices: invoicesCount, pendingInvoices: pendingInvoicesCount },
+        stats: {
+          patients: patientsCount,
+          doctors: doctorsCount,
+          appointments: apptsCount,
+          invoices: invoicesCount,
+          pendingInvoices: pendingInvoicesCount
+        },
       });
     } catch (err) { next(err); }
   }

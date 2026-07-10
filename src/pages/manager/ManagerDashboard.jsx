@@ -112,7 +112,7 @@ function ManagerHome() {
           { title: 'إجمالي الإيرادات (مباشر)', value: liveStats ? `${liveStats.revenue.toLocaleString()} ج.م` : 'جاري التحميل...', icon: DollarSign, gradient: 'linear-gradient(135deg, #14b8a6, #0d9488)', trend: 'up', trendValue: '+18%' },
           { title: 'الأرباح (صافي)', value: liveStats ? `${liveStats.profit.toLocaleString()} ج.م` : 'جاري التحميل...', icon: TrendingUp, gradient: 'linear-gradient(135deg, #2563eb, #3b82f6)', trend: 'up', trendValue: '+12%' },
           { title: 'عدد الفواتير', value: liveStats ? liveStats.stats.invoices : '...', icon: Receipt, gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', trend: 'up', trendValue: '+234' },
-          { title: 'المدفوعات المتأخرة', value: '48.3K ج.م', icon: AlertCircle, gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', trend: 'down', trendValue: '-8%' },
+          { title: 'المدفوعات المتأخرة', value: liveStats ? `${liveStats.pendingInvoicesAmount.toLocaleString()} ج.م` : 'جاري التحميل...', icon: AlertCircle, gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', trend: 'down', trendValue: '-8%' },
           { title: 'المرضى المسجلين', value: liveStats ? liveStats.stats.patients : '...', icon: ShieldCheck, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', trend: 'up', trendValue: '+5%' },
           { title: 'المواعيد والحجوزات', value: liveStats ? liveStats.stats.appointments : '...', icon: Calendar, gradient: 'linear-gradient(135deg, #14b8a6, #2563eb)', trend: 'up', trendValue: '+3.2%' },
         ].map((s, i) => <StatCard key={i} {...s} index={i} />)}
@@ -152,6 +152,7 @@ function ManagerHome() {
             <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v/1000).toFixed(0)}K`} />
             <Tooltip formatter={v => `${v.toLocaleString()} ج.م`} contentStyle={{ backgroundColor: '#1e293b', color: '#f8fafc', fontFamily: 'Cairo', borderRadius: '12px', border: '1px solid #334155', boxShadow: '0 8px 30px rgba(0,0,0,0.2)' }} itemStyle={{ color: '#e2e8f0' }} />
             <Area type="monotone" dataKey="revenue" stroke="#2563eb" strokeWidth={2.5} fill="url(#revenue)" name="الإيرادات" dot={{ r: 4, fill: '#2563eb' }} />
+            <Area type="monotone" dataKey="profit" stroke="#14b8a6" strokeWidth={2.5} fill="url(#profit)" name="الأرباح" dot={{ r: 4, fill: '#14b8a6' }} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -210,8 +211,23 @@ function ManagerHome() {
 }
 
 function RevenuePage() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get('/finance/summary')
+      .then(res => {
+        setData(res.data.monthlyData || []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="p-10 text-center animate-pulse text-slate-400 font-cairo">جاري تحميل تقرير الإيرادات...</div>;
+
   return (
-    <div className="p-6 fade-in">
+    <div className="p-6 fade-in font-cairo">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div className="section-header mb-0">
           <div className="section-header-line" style={{ background: 'linear-gradient(180deg, #ef4444, #dc2626)' }} />
@@ -235,7 +251,7 @@ function RevenuePage() {
       <div className="chart-container mb-6">
         <h4 className="font-bold text-slate-900 mb-4">الإيرادات الشهرية مقارنة</h4>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={monthlyData}>
+          <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fontFamily: 'Cairo' }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v/1000).toFixed(0)}K`} />
@@ -250,23 +266,30 @@ function RevenuePage() {
         <table className="hospital-table">
           <thead><tr><th>الشهر</th><th>الإيرادات</th><th>المصروفات</th><th>الأرباح</th><th>هامش الربح</th></tr></thead>
           <tbody>
-            {monthlyData.map((m, i) => (
-              <tr key={i}>
-                <td className="font-medium text-slate-800">{m.month}</td>
-                <td className="text-green-600 dark:text-green-400 font-semibold">{m.revenue.toLocaleString()} ج.م</td>
-                <td className="text-red-500 dark:text-red-400 font-semibold">{m.expenses.toLocaleString()} ج.م</td>
-                <td className="text-blue-600 dark:text-blue-400 font-bold">{m.profit.toLocaleString()} ج.م</td>
-                <td>
-                  <span className="badge-success">{((m.profit / m.revenue) * 100).toFixed(1)}%</span>
-                </td>
-              </tr>
-            ))}
-            <tr className="bg-slate-50 font-black">
-              <td className="font-black text-slate-900">الإجمالي</td>
-              <td className="text-green-700 font-black">SAR {monthlyData.reduce((s, m) => s + m.revenue, 0).toLocaleString()}</td>
-              <td className="text-red-600 font-black">SAR {monthlyData.reduce((s, m) => s + m.expenses, 0).toLocaleString()}</td>
-              <td className="text-blue-700 font-black">SAR {monthlyData.reduce((s, m) => s + m.profit, 0).toLocaleString()}</td>
-              <td><span className="badge-success font-black">34.5%</span></td>
+            {data.map((m, i) => {
+              const margin = m.revenue > 0 ? ((m.profit / m.revenue) * 100).toFixed(1) : '0.0';
+              return (
+                <tr key={i}>
+                  <td className="font-medium text-slate-800 dark:text-slate-200">{m.month}</td>
+                  <td className="font-bold text-teal-600 dark:text-teal-400">{m.revenue.toLocaleString()} ج.م</td>
+                  <td className="text-red-600 dark:text-red-400">{m.expenses.toLocaleString()} ج.م</td>
+                  <td className="font-bold text-blue-600 dark:text-blue-400">{m.profit.toLocaleString()} ج.م</td>
+                  <td><span className="badge-success">{margin}%</span></td>
+                </tr>
+              );
+            })}
+            <tr className="bg-slate-50 dark:bg-slate-800 font-black">
+              <td className="font-black text-slate-900 dark:text-white">الإجمالي</td>
+              <td className="text-green-700 dark:text-green-400 font-black">{data.reduce((s, m) => s + m.revenue, 0).toLocaleString()} ج.م</td>
+              <td className="text-red-600 dark:text-red-400 font-black">{data.reduce((s, m) => s + m.expenses, 0).toLocaleString()} ج.م</td>
+              <td className="text-blue-700 dark:text-blue-400 font-black">{data.reduce((s, m) => s + m.profit, 0).toLocaleString()} ج.م</td>
+              <td>
+                <span className="badge-success font-black">
+                  {data.reduce((s, m) => s + m.revenue, 0) > 0
+                    ? ((data.reduce((s, m) => s + m.profit, 0) / data.reduce((s, m) => s + m.revenue, 0)) * 100).toFixed(1)
+                    : '0.0'}%
+                </span>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -589,6 +612,148 @@ function LeavesPage() {
   );
 }
 
+function ExpensesPage() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get('/finance/summary')
+      .then(res => {
+        setData(res.data.monthlyData || []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="p-10 text-center animate-pulse text-slate-400 font-cairo">جاري تحميل تقرير المصروفات...</div>;
+
+  return (
+    <div className="p-6 fade-in font-cairo">
+      <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+        <div className="section-header mb-0">
+          <div className="section-header-line" style={{ background: 'linear-gradient(180deg, #ef4444, #dc2626)' }} />
+          <h3 className="text-xl font-bold">تقرير المصروفات التفصيلي</h3>
+        </div>
+        <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium no-print"
+          style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+          <Printer className="w-4 h-4" />طباعة
+        </button>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800">
+        <table className="hospital-table">
+          <thead><tr><th>الشهر</th><th>الرواتب والبدلات (60%)</th><th>مشتريات الأجهزة والأدوية (25%)</th><th>الصيانة والمصروفات العامة (15%)</th><th>إجمالي المصروفات</th></tr></thead>
+          <tbody>
+            {data.map((m, i) => {
+              const payroll = (m.expenses || 0) * 0.60;
+              const supplies = (m.expenses || 0) * 0.25;
+              const general = (m.expenses || 0) * 0.15;
+              return (
+                <tr key={i}>
+                  <td className="font-medium text-slate-800 dark:text-slate-200">{m.month}</td>
+                  <td className="text-slate-600 dark:text-slate-300">{Math.round(payroll).toLocaleString()} ج.م</td>
+                  <td className="text-slate-600 dark:text-slate-300">{Math.round(supplies).toLocaleString()} ج.م</td>
+                  <td className="text-slate-600 dark:text-slate-300">{Math.round(general).toLocaleString()} ج.م</td>
+                  <td className="font-bold text-red-600 dark:text-red-400">{(m.expenses || 0).toLocaleString()} ج.م</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function OutstandingInvoicesPage() {
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get('/finance/invoices')
+      .then(res => {
+        const unpaid = (res.data?.data || []).filter(inv => inv.status === 'UNPAID' || inv.status === 'PARTIAL');
+        setInvoices(unpaid);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const calculateDaysDelay = (dueDate) => {
+    if (!dueDate) return 0;
+    const diff = new Date() - new Date(dueDate);
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
+  };
+
+  if (loading) return <div className="p-10 text-center animate-pulse text-slate-400 font-cairo">جاري تحميل الفواتير المتأخرة...</div>;
+
+  return (
+    <div className="p-6 fade-in font-cairo">
+      <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+        <div className="section-header mb-0">
+          <div className="section-header-line" style={{ background: 'linear-gradient(180deg, #ef4444, #dc2626)' }} />
+          <h3 className="text-xl font-bold">الفواتير المتأخرة</h3>
+        </div>
+        <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium no-print"
+          style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+          <Printer className="w-4 h-4" />طباعة
+        </button>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800">
+        {invoices.length === 0 ? (
+          <div className="p-10 text-center text-slate-400 dark:text-slate-500">لا توجد فواتير متأخرة حالياً ✓</div>
+        ) : (
+          <table className="hospital-table">
+            <thead>
+              <tr>
+                <th>المريض</th>
+                <th>قيمة الفاتورة</th>
+                <th>تاريخ الاستحقاق</th>
+                <th>أيام التأخير</th>
+                <th>التأمين</th>
+                <th>الحالة</th>
+                <th>إجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((inv) => {
+                const days = calculateDaysDelay(inv.dueDate);
+                const hasInsurance = inv.claims && inv.claims.length > 0;
+                const companyName = hasInsurance ? inv.claims[0].company?.name : 'لا يوجد';
+                return (
+                  <tr key={inv.id}>
+                    <td className="font-medium text-slate-800 dark:text-slate-200">{inv.patient?.user?.name || `مريض #${inv.patientId}`}</td>
+                    <td className="font-bold text-red-600 dark:text-red-400">{(inv.totalAmount || 0).toLocaleString()} ج.م</td>
+                    <td className="text-slate-500">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('ar-EG') : 'غير محدد'}</td>
+                    <td>
+                      <span className={days > 30 ? 'badge-danger' : days > 0 ? 'badge-warning' : 'badge-success'}>
+                        {days} يوم
+                      </span>
+                    </td>
+                    <td className="text-slate-600 dark:text-slate-400 text-sm">{companyName}</td>
+                    <td>
+                      <span className={inv.status === 'PARTIAL' ? 'badge-warning' : 'badge-danger'}>
+                        {inv.status === 'PARTIAL' ? 'مدفوعة جزئياً' : 'غير مدفوعة'}
+                      </span>
+                    </td>
+                    <td>
+                      <button className="btn-secondary-hospital text-xs py-1.5 px-3">إرسال تذكير</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ManagerDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -661,63 +826,8 @@ export default function ManagerDashboard() {
           <Route path="revenue" element={<RevenuePage />} />
           <Route path="insurance" element={<InsurancePage />} />
           <Route path="leaves" element={<LeavesPage />} />
-          <Route path="expenses" element={
-            <div className="p-6">
-              <div className="section-header">
-                <div className="section-header-line" style={{ background: 'linear-gradient(180deg, #ef4444, #dc2626)' }} />
-                <h3 className="text-xl font-bold">تقرير المصروفات</h3>
-              </div>
-              <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-                <table className="hospital-table">
-                  <thead><tr><th>الشهر</th><th>الرواتب</th><th>المستلزمات</th><th>الصيانة</th><th>الإجمالي</th></tr></thead>
-                  <tbody>
-                    {monthlyData.slice(0, 6).map((m, i) => (
-                      <tr key={i}>
-                        <td className="font-medium">{m.month}</td>
-                        <td className="text-slate-600 dark:text-slate-300">{Math.round(m.expenses * 0.55).toLocaleString()} ج.م</td>
-                        <td className="text-slate-600 dark:text-slate-300">{Math.round(m.expenses * 0.30).toLocaleString()} ج.م</td>
-                        <td className="text-slate-600 dark:text-slate-300">{Math.round(m.expenses * 0.15).toLocaleString()} ج.م</td>
-                        <td className="font-bold text-red-600 dark:text-red-400">{m.expenses.toLocaleString()} ج.م</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          } />
-          <Route path="outstanding" element={
-            <div className="p-6">
-              <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
-                <div className="section-header mb-0">
-                  <div className="section-header-line" style={{ background: 'linear-gradient(180deg, #ef4444, #dc2626)' }} />
-                  <h3 className="text-xl font-bold">الفواتير المتأخرة</h3>
-                </div>
-                <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium no-print"
-                  style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
-                  <Printer className="w-4 h-4" />طباعة
-                </button>
-              </div>
-              <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-                <table className="hospital-table">
-                  <thead><tr><th>المريض</th><th>المبلغ</th><th>تاريخ الاستحقاق</th><th>أيام التأخير</th><th>التأمين</th><th>إجراء</th></tr></thead>
-                  <tbody>
-                    {outstanding.map((o, i) => (
-                      <tr key={i}>
-                        <td className="font-medium">{o.patient}</td>
-                        <td className="font-bold text-red-600 dark:text-red-400">{o.amount.toLocaleString()} ج.م</td>
-                        <td className="text-slate-500">{o.dueDate}</td>
-                        <td><span className={o.days > 30 ? 'badge-danger' : 'badge-warning'}>{o.days} يوم</span></td>
-                        <td className="text-slate-600 text-sm">{o.insurance}</td>
-                        <td>
-                          <button className="btn-secondary-hospital text-xs py-1.5 px-3">إرسال تذكير</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          } />
+          <Route path="expenses" element={<ExpensesPage />} />
+          <Route path="outstanding" element={<OutstandingInvoicesPage />} />
           <Route path="*" element={<ManagerHome />} />
         </Routes>
       </main>
